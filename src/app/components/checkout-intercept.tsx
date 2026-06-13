@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Leaf, AlertTriangle, CheckCircle2,
@@ -7,8 +7,8 @@ import {
 import { ArcGauge } from "./arc-gauge";
 
 const CART = [
-  { id: 1, name: "Nike Air Max 270",       size: 7,   color: "Black / White",   price: 149.99, qty: 1, img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop&auto=format" },
-  { id: 2, name: "Lululemon Align Jogger", size: "M", color: "Heathered Navy",  price: 118.00, qty: 1, img: "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=120&h=120&fit=crop&auto=format" },
+  { id: 1, name: "Nike Air Max 270",       size: 7,   color: "Black / White",   price: 12999, qty: 1, img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop&auto=format" },
+  { id: 2, name: "Lululemon Align Jogger", size: "M", color: "Heathered Navy",  price: 8999, qty: 1, img: "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=120&h=120&fit=crop&auto=format" },
 ];
 
 const RISK_FACTORS = [
@@ -121,14 +121,24 @@ function InterceptModal({ onSwitch, onKeep }: { onSwitch: () => void; onKeep: ()
   );
 }
 
-function SuccessState({ switched }: { switched: boolean }) {
+function SuccessState({ switched, onDismiss }: { switched: boolean; onDismiss: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 3000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      onClick={onDismiss}
+    >
       <motion.div className="absolute inset-0 bg-gray-900/30 backdrop-blur-[2px]" />
       <motion.div
-        className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+        className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden cursor-default"
         initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 320, damping: 28 }}
+        onClick={e => e.stopPropagation()}
       >
         <div className={`h-0.5 w-full ${switched ? "bg-green-500" : "bg-gray-300"}`} />
         <div className="px-6 py-10 flex flex-col items-center text-center gap-4">
@@ -151,10 +161,17 @@ function SuccessState({ switched }: { switched: boolean }) {
               initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             >
               <Leaf className="w-3.5 h-3.5 text-green-600" />
-              <span className="text-green-700 text-sm font-semibold">−2.3 kg CO₂ · −$7.50 saved</span>
+              <span className="text-green-700 text-sm font-semibold">−2.3 kg CO₂ · ₹650 saved</span>
             </motion.div>
           )}
         </div>
+        {/* Auto-dismiss progress bar */}
+        <motion.div
+          className={`h-0.5 ${switched ? "bg-green-500" : "bg-gray-400"}`}
+          initial={{ width: "100%" }}
+          animate={{ width: "0%" }}
+          transition={{ duration: 3, ease: "linear" }}
+        />
       </motion.div>
     </motion.div>
   );
@@ -222,7 +239,7 @@ export function CheckoutIntercept() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-bold text-gray-900">${item.price.toFixed(2)}</p>
+                <p className="text-sm font-bold text-gray-900">₹{item.price.toLocaleString("en-IN")}</p>
                 <p className="text-xs text-gray-400 mt-0.5">Qty {item.qty}</p>
               </div>
             </motion.div>
@@ -253,7 +270,7 @@ export function CheckoutIntercept() {
               {displayItems.map(item => (
                 <div key={item.id} className="flex items-center justify-between">
                   <span className="text-xs text-gray-600 truncate max-w-[160px]">{item.name}</span>
-                  <span className="text-xs font-semibold text-gray-800">${item.price.toFixed(2)}</span>
+                  <span className="text-xs font-semibold text-gray-800">₹{item.price.toLocaleString("en-IN")}</span>
                 </div>
               ))}
 
@@ -261,7 +278,7 @@ export function CheckoutIntercept() {
                 {result === "switched" && (
                   <motion.div className="flex items-center justify-between" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <span className="text-xs text-green-700 font-medium">Green Discount (5%)</span>
-                    <span className="text-xs font-bold text-green-700">−${(CART[0].price * 0.05).toFixed(2)}</span>
+                    <span className="text-xs font-bold text-green-700">−₹{Math.round(CART[0].price * 0.05).toLocaleString("en-IN")}</span>
                   </motion.div>
                 )}
                 <div className="flex items-center justify-between">
@@ -273,7 +290,7 @@ export function CheckoutIntercept() {
               <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-gray-900">Total</span>
                 <motion.span key={subtotal} className="text-lg font-bold text-gray-900">
-                  ${subtotal.toFixed(2)}
+                  ₹{Math.round(subtotal).toLocaleString("en-IN")}
                 </motion.span>
               </div>
 
@@ -309,7 +326,7 @@ export function CheckoutIntercept() {
       <AnimatePresence>
         {result !== null && (
           <motion.div key="success" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <SuccessState switched={result === "switched"} />
+            <SuccessState switched={result === "switched"} onDismiss={() => setResult(null)} />
           </motion.div>
         )}
       </AnimatePresence>

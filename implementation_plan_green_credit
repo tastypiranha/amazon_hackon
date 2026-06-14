@@ -1,0 +1,63 @@
+# Implementation Plan: Standalone Green Engine ("Karma Engine")
+
+To maintain a clean architectural separation of concerns, the gamification and carbon-tracking logic will be completely decoupled from the core financial math of the Decision Engine.
+
+> [!IMPORTANT]
+> **Scope of this plan:** In this specific step, we are **JUST** building the Python logic for the Green Point Engine (`green_engine.py`). We are not building the FastAPI backend or modifying the React frontend yet. This phase is purely to finalize the gamification math and Python algorithms.
+
+## Architecture: The "Two Engine" Model & DTO Contract
+
+To prevent strict coupling between the Decision Engine and the Green Engine, they will communicate strictly through a Data Transfer Object (DTO). **The Green Engine will never import or call the Decision Engine directly.**
+
+#### [NEW] `TransactionDTO` (Data Contract)
+A simple dataclass that passes structured event data from the main orchestrator (the FastAPI app) to the Green Engine.
+```python
+@dataclass
+class TransactionDTO:
+    category: str
+    is_local_p2p: bool
+    disposition_route: str          # 'donate', 'exchange', 'recycle', 'refurbish', 'resell'
+    condition_delta_percentage: float # e.g., 20.0 for 20% depreciation
+    logistics_fee: float            # Required shipping fee
+```
+
+## Proposed Changes
+
+### 1. Build the Green Engine Logic
+
+#### [NEW] [green_engine.py](file:///c:/Users/gargt/warehouse%20algo/green_engine.py)
+Create a new standalone Python file `green_engine.py`.
+
+* **Constants Configuration:**
+  * **Disposition Multipliers:** Donate (`3.0x`), Exchange (`2.0x`), Recycle (`2.0x`), Refurbished (`1.5x`), Resell (`1.0x`).
+  * **Return Windows (Escrow Duration):** Electronics/Appliances (`7 days`), Clothing (`15 days`), Vehicles (`0 days - final sale`).
+  * **Conversion Rate:** `100 Green Points = ₹10`.
+
+* **`calculate_co2_savings(dto: TransactionDTO)`**:
+  * Calculates carbon savings based on product category baselines (e.g., Laptops = 1500 pts, Phones = 800 pts).
+  * Adds a flat `500 pt` proximity bonus if `dto.is_local_p2p` is True.
+
+* **`calculate_disposition_reward(dto: TransactionDTO, base_points: int)`**:
+  * Multiplies the `base_points` by the disposition multiplier defined in the Constants table to reward charitable/circular outcomes.
+
+* **`process_transaction_points(dto: TransactionDTO, points: int)`**:
+  * **Anti-Gaming Logic (Return Period Escrow):**
+  * Reads the category from the DTO to determine the escrow duration (e.g., 7 days).
+  * Sets the points state to `PENDING` with an `unlock_date = current_time + escrow_duration`.
+
+* **`calculate_damage_penalty(dto: TransactionDTO)`**:
+  * Reads `dto.condition_delta_percentage`.
+  * *Example:* A 20% depreciation maps directly to a penalty. (e.g., `condition_delta_percentage * 100` = `-2000 points`).
+
+* **`apply_fee_waiver(current_points: int, required_fee: float)`**:
+  * **Partial-Burn Handling:** If a user does not have enough points to zero-out the entire `required_fee`, the system allows a *partial burn*.
+  * It burns all available points up to the maximum required. 
+  * *Returns:* `(points_burned, remaining_fee_to_pay)`.
+
+## Verification Plan
+
+We will write a `__main__` block that explicitly tests three rigorous scenarios to ensure the DTO contract and logic are flawless:
+
+1. **The Normal Purchase & Escrow:** Simulate a laptop purchase. Pass the DTO. Verify points are placed in `PENDING` state with a 7-day timestamp. Fast-forward the mock time to day 8 and verify points transition to `AVAILABLE`.
+2. **The Fraud Return & Damage Penalty:** Simulate a purchase that is returned on day 3. Verify that the pending points are `VOIDED`. Pass a DTO indicating `condition_delta_percentage = 15.0`. Verify the user receives a `-1500` point Eco-Score penalty.
+3. **The Partial Fee Waiver:** Simulate a user with `800 available points`. Pass a logistics fee of `₹150` (which requires 1500 points). Verify the function returns `points_burned = 800` and `remaining_fee_to_pay = ₹70`.

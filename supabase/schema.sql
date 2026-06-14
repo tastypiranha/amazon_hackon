@@ -191,6 +191,7 @@ create table donations (
   donor_id uuid references auth.users(id),
   title text not null,
   description text,
+  category text,
   image_url text,
   location text not null,
   status text default 'available', -- 'available', 'claimed'
@@ -205,3 +206,37 @@ create policy "Users can insert own donations." on donations for insert with che
 create policy "Users can update donations." on donations for update using (true);
 
 alter publication supabase_realtime add table donations;
+
+-- 12. exchanges
+create table exchanges (
+  id integer primary key generated always as identity,
+  
+  -- The item Party A is offering
+  initiator_id uuid references auth.users(id),
+  initiator_listing_id integer references listings(id),
+  initiator_item_value numeric not null,
+  
+  -- The item Party B owns (the nationwide match)
+  target_id uuid references auth.users(id),
+  target_listing_id integer references listings(id),
+  target_item_value numeric not null,
+  
+  -- Logistics tracking
+  delivery_method text not null, -- 'manual' (same city) or 'amazon_handles'
+  initiator_fee numeric not null, -- Cost Party A pays
+  target_fee numeric not null,    -- Cost Party B pays
+  
+  -- Exchange lifecycle
+  status text default 'pending', -- 'pending', 'accepted', 'rejected', 'completed'
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table exchanges enable row level security;
+create policy "Users can view exchanges they are part of." on exchanges 
+  for select using (auth.uid() = initiator_id or auth.uid() = target_id);
+create policy "Users can initiate exchanges." on exchanges 
+  for insert with check (auth.uid() = initiator_id);
+create policy "Users can update exchanges." on exchanges 
+  for update using (auth.uid() = initiator_id or auth.uid() = target_id);
+
+alter publication supabase_realtime add table exchanges;

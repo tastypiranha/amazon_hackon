@@ -145,3 +145,18 @@ export interface Donation {
   transportation_fee?: number;
   created_at?: string;
 }
+
+export interface ExchangeOffer {
+  id?: number;
+  initiator_id: string;
+  initiator_listing_id: number;
+  initiator_item_value: number;
+  target_id: string;
+  target_listing_id: number;
+  target_item_value: number;
+  delivery_method: string;
+  initiator_fee: number;
+  target_fee: number;
+  status: string;
+  created_at?: string;
+}

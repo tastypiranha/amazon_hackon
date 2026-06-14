@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Product, Listing, Order, CartItem, Event, UserProfile, Match, Donation } from './types';
+import { Product, Listing, Order, CartItem, Event, UserProfile, Match, Donation, ExchangeOffer } from './types';
 
 // Products
 export function useProducts(category?: string) {
@@ -277,4 +277,68 @@ export async function claimDonation(id: number, deliveryMethod: string = 'manual
     delivery_method: deliveryMethod,
     transportation_fee: fee
   }).eq('id', id);
+}
+
+// Exchange Engine
+export async function findExchangeMatches(sellerValue: number, sellerLocation: string) {
+  // Finds nationwide active listings to exchange with
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*, products(*)')
+    .eq('status', 'active');
+    
+  if (error || !data) return [];
+  
+  // Apply the ±30% Amazon value match tolerance
+  // In a real app, 'amazon_value' would be pre-calculated in the DB or via Edge Function
+  // For this mock, we just use the ask_price as a proxy for the value
+  const tolerance = 0.30;
+  const matches = data.filter(item => {
+    const itemValue = Number(item.ask_price);
+    const diffPct = Math.abs(itemValue - sellerValue) / sellerValue;
+    return diffPct <= tolerance;
+  });
+  
+  return matches;
+}
+
+export async function proposeExchange(offer: Partial<ExchangeOffer>) {
+  return await supabase.from('exchanges').insert(offer).select().single();
+}
+
+export function useExchangeOffers(userId: string) {
+  const [offers, setOffers] = useState<ExchangeOffer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    async function load() {
+      // Find exchanges where this user is Party B (target) and it's pending
+      const { data, error } = await supabase
+        .from('exchanges')
+        .select('*')
+        .eq('target_id', userId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      if (!error && data) setOffers(data as ExchangeOffer[]);
+      setLoading(false);
+    }
+    load();
+    
+    // Listen for new incoming exchange offers
+    const channel = supabase
+      .channel('public:exchanges')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'exchanges', filter: `target_id=eq.${userId}` }, payload => {
+        if (payload.new.status === 'pending') {
+          setOffers(current => [payload.new as ExchangeOffer, ...current]);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  return { offers, loading };
 }

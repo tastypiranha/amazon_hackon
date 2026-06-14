@@ -70,12 +70,12 @@ function ProductCard({ p, delay = 0, onNav }: { p: Product; delay?: number; onNa
       <div className="relative bg-gray-50 aspect-[4/3] overflow-hidden">
         <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         {/* Tag */}
-        {p.tag && p.tagLabel && (
+        {p.tag && p.tag_label && (
           <div className={`absolute top-2.5 left-2.5 flex items-center gap-1 border text-[10px] font-black rounded-full px-2 py-0.5 ${TAG_STYLES[p.tag] || TAG_STYLES["fair"]}`}>
             {p.tag === "top-pick" && <Flame className="w-3 h-3" />}
             {p.tag === "lowest" && <BadgePercent className="w-3 h-3" />}
             {p.tag === "fair" && <Sparkles className="w-3 h-3" />}
-            {p.tagLabel}
+            {p.tag_label}
           </div>
         )}
         {/* Like */}

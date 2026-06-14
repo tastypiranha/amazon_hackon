@@ -6,6 +6,9 @@ import {
   Gift, Users, ArrowRight, Plus, MessageCircle,
   Camera, Edit2, MoreHorizontal
 } from "lucide-react";
+import { createDonation } from "../../lib/hooks";
+import { useAuthContext } from "../../lib/AuthContext";
+
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -195,11 +198,40 @@ function PostDonation() {
   const [condition, setCondition] = useState<typeof CONDITIONS[number]>("Good");
   const [description, setDescription] = useState("");
   const [posted, setPosted] = useState(false);
+  const { user } = useAuthContext();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
     if (!file.type.startsWith("image/")) return;
     setImageUrl(URL.createObjectURL(file));
+  };
+
+  const handleDonate = async () => {
+    if (!itemName || !description) return;
+    if (!user) {
+      alert("You must be logged in to donate an item.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    const { error } = await createDonation({
+      donor_id: user.id,
+      title: itemName,
+      category,
+      description,
+      location: "Your Location", // Mock location for now
+      status: 'available',
+      image_url: imageUrl || "https://images.unsplash.com/photo-1566004100631-35d015d6a491?w=400&h=300&fit=crop&auto=format" // fallback image
+    });
+
+    setIsSubmitting(false);
+    if (error) {
+      console.error(error);
+      alert("Failed to create donation in Supabase!");
+      return;
+    }
+    setPosted(true);
   };
 
   if (posted) {
@@ -354,16 +386,16 @@ function PostDonation() {
 
       {/* Submit */}
       <motion.button
-        onClick={() => { if (itemName && description) setPosted(true); }}
-        disabled={!itemName || !description}
+        onClick={handleDonate}
+        disabled={!itemName || !description || isSubmitting}
         className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold cursor-pointer transition-colors ${
-          itemName && description
+          itemName && description && !isSubmitting
             ? "bg-rose-500 hover:bg-rose-600 text-white"
             : "bg-gray-100 text-gray-400 cursor-not-allowed"
         }`}
-        whileTap={itemName && description ? { scale: 0.98 } : undefined}
+        whileTap={itemName && description && !isSubmitting ? { scale: 0.98 } : undefined}
       >
-        <Heart className="w-4 h-4" /> List Item for Donation
+        <Heart className="w-4 h-4" /> {isSubmitting ? "Listing Item..." : "List Item for Donation"}
       </motion.button>
     </div>
   );

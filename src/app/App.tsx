@@ -5,7 +5,7 @@ import {
   Leaf, ShoppingCart, Cpu, Shield, Users,
   LayoutDashboard, TrendingUp, BarChart2,
   Search, Star, ShoppingBag, Heart, ChevronRight, Gift,
-  Wallet, Zap, MapPin, Clock, Flame, BadgePercent, Sparkles, RotateCcw
+  Wallet, Zap, MapPin, Clock, Flame, BadgePercent, Sparkles, RotateCcw, ArrowLeftRight
 } from "lucide-react";
 
 import { CheckoutIntercept } from "./components/checkout-intercept";
@@ -16,6 +16,7 @@ import { OpsDashboard } from "./components/ops-dashboard";
 import { ReturnsPortal } from "./components/returns-portal";
 import { Login } from "./components/login";
 import { DonationHub } from "./components/donation-hub";
+import { Exchange } from "./components/exchange";
 
 import { useProducts, useP2PNearby, useDonationListener } from "../lib/hooks";
 import { useAuthContext } from "../lib/AuthContext";
@@ -30,6 +31,7 @@ const NAV = [
   { id: "p2p",      label: "P2P Matching",       icon: Users },
   { id: "returns",  label: "Returns Portal",     icon: RotateCcw },
   { id: "donations",label: "Donation Hub",       icon: Heart },
+  { id: "exchange", label: "Exchange",           icon: ArrowLeftRight },
   { id: "ops",      label: "Ops Dashboard",      icon: BarChart2 },
 ];
 
@@ -543,6 +545,7 @@ export default function App() {
       case "buyer":    return <BuyerView productId={selectedProductId} />;
       case "p2p":      return <P2PMatching />;
       case "donations":return <DonationHub />;
+      case "exchange": return <Exchange />;
       case "ops":      return <OpsDashboard />;
       default:         return null;
     }

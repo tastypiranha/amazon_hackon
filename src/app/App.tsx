@@ -4,7 +4,7 @@ import rcLogo from "../imports/images__1_.png";
 import {
   Leaf, ShoppingCart, Cpu, Shield, Users,
   LayoutDashboard, TrendingUp, BarChart2,
-  Search, Star, ShoppingBag, Heart, ChevronRight,
+  Search, Star, ShoppingBag, Heart, ChevronRight, Gift,
   Wallet, Zap, MapPin, Clock, Flame, BadgePercent, Sparkles, RotateCcw
 } from "lucide-react";
 
@@ -15,10 +15,11 @@ import { P2PMatching } from "./components/p2p-matching";
 import { OpsDashboard } from "./components/ops-dashboard";
 import { ReturnsPortal } from "./components/returns-portal";
 import { Login } from "./components/login";
+import { DonationHub } from "./components/donation-hub";
 
-import { useProducts, useP2PNearby } from "../lib/hooks";
+import { useProducts, useP2PNearby, useDonationListener } from "../lib/hooks";
 import { useAuthContext } from "../lib/AuthContext";
-import { Product } from "../lib/types";
+import { Product, Donation } from "../lib/types";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ const NAV = [
   { id: "seller",   label: "Seller Hub",         icon: Cpu },
   { id: "p2p",      label: "P2P Matching",       icon: Users },
   { id: "returns",  label: "Returns Portal",     icon: RotateCcw },
+  { id: "donations",label: "Donation Hub",       icon: Heart },
   { id: "ops",      label: "Ops Dashboard",      icon: BarChart2 },
 ];
 
@@ -505,9 +507,18 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string) 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const { session, loading } = useAuthContext();
+  const { session, loading, user } = useAuthContext();
   const [screen, setScreen] = useState("home");
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
+  const [notification, setNotification] = useState<Donation | null>(null);
+
+  useDonationListener((newDonation) => {
+    // Show notification for donations by other users
+    if (newDonation.donor_id !== user?.id) {
+      setNotification(newDonation);
+      setTimeout(() => setNotification(null), 8000); // auto-hide after 8s
+    }
+  });
 
   if (loading) {
     return <div className="flex items-center justify-center h-full bg-[#111827] text-white">Loading...</div>;
@@ -531,13 +542,40 @@ export default function App() {
       case "seller":   return <SellerHub />;
       case "buyer":    return <BuyerView productId={selectedProductId} />;
       case "p2p":      return <P2PMatching />;
+      case "donations":return <DonationHub />;
       case "ops":      return <OpsDashboard />;
       default:         return null;
     }
   };
 
   return (
-    <div className="flex h-full bg-[#111827]">
+    <div className="flex h-full bg-[#111827] relative">
+      <AnimatePresence>
+        {notification && (
+          <motion.div 
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            className="absolute top-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-rose-200 shadow-xl rounded-2xl p-4 flex items-center gap-4 max-w-md w-full"
+          >
+            <div className="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Gift className="w-6 h-6 text-rose-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-0.5">New Donation Nearby</p>
+              <p className="text-sm font-bold text-gray-900 truncate">{notification.title}</p>
+              <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3"/> {notification.location}</p>
+            </div>
+            <button 
+              onClick={() => { setNotification(null); handleNav("donations"); }}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
+            >
+              View
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Sidebar active={screen} onChange={(id) => handleNav(id)} />
 
       <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col h-full">

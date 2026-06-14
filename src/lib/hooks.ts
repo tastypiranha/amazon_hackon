@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Product, Listing, Order, CartItem, Event, UserProfile, Match } from './types';
+import { Product, Listing, Order, CartItem, Event, UserProfile, Match, Donation } from './types';
 
 // Products
 export function useProducts(category?: string) {
@@ -229,4 +229,52 @@ export async function awardGreenCredits(userId: string, points: number, co2_kg: 
       co2_saved_kg: Number(profile.co2_saved_kg) + co2_kg
     }).eq('id', userId);
   }
+}
+
+// Donations
+export function useDonations() {
+  const [donations, setDonations] = useState<Donation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const { data, error } = await supabase
+        .from('donations')
+        .select('*')
+        .eq('status', 'available')
+        .order('created_at', { ascending: false });
+      if (!error && data) setDonations(data as Donation[]);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  return { donations, loading, setDonations };
+}
+
+export function useDonationListener(onNewDonation: (d: Donation) => void) {
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:donations')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'donations' }, payload => {
+        onNewDonation(payload.new as Donation);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [onNewDonation]);
+}
+
+export async function createDonation(data: Partial<Donation>) {
+  return await supabase.from('donations').insert(data).select().single();
+}
+
+export async function claimDonation(id: number, deliveryMethod: string = 'manual', fee: number = 0) {
+  return await supabase.from('donations').update({ 
+    status: 'claimed',
+    delivery_method: deliveryMethod,
+    transportation_fee: fee
+  }).eq('id', id);
 }

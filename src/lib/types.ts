@@ -127,8 +127,21 @@ export interface Event {
   event_type: string;
   text: string;
   icon_name: string;
-  color_class: string;
-  bg_class: string;
-  border_class: string;
-  created_at: string;
+  color_class?: string;
+  bg_class?: string;
+  border_class?: string;
+  created_at?: string;
+}
+
+export interface Donation {
+  id?: number;
+  donor_id: string;
+  title: string;
+  description?: string;
+  image_url?: string;
+  location: string;
+  status: string;
+  delivery_method?: string;
+  transportation_fee?: number;
+  created_at?: string;
 }

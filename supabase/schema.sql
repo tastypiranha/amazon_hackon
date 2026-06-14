@@ -184,3 +184,24 @@ create policy "Users can insert own credit log." on green_credits_log for insert
 
 -- Enable Realtime for Events
 alter publication supabase_realtime add table events;
+
+-- 11. donations
+create table donations (
+  id integer primary key generated always as identity,
+  donor_id uuid references auth.users(id),
+  title text not null,
+  description text,
+  image_url text,
+  location text not null,
+  status text default 'available', -- 'available', 'claimed'
+  delivery_method text, -- 'manual', 'amazon'
+  transportation_fee numeric,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table donations enable row level security;
+create policy "Donations are viewable by everyone." on donations for select using (true);
+create policy "Users can insert own donations." on donations for insert with check (auth.uid() = donor_id);
+create policy "Users can update donations." on donations for update using (true);
+
+alter publication supabase_realtime add table donations;

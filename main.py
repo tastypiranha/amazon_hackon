@@ -297,6 +297,7 @@ def decide(req: DecisionRequest):
         return {
             "decision": "AMAZON_REJECTS",
             "condition": condition,
+            "best_warehouse": best_location.upper(),
             "k_max": k_max,
             "threshold": AMAZON_PURCHASE_THRESHOLD,
             "prices_comparison": {

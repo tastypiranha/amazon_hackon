@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import rcLogo from "../imports/images__1_.png";
 import {
@@ -21,6 +21,7 @@ import { Exchange } from "./components/exchange";
 import { useProducts, useP2PNearby, useDonationListener } from "../lib/hooks";
 import { useAuthContext } from "../lib/AuthContext";
 import { Product, Donation } from "../lib/types";
+import { getListedProducts, subscribe as subscribeProducts } from "../lib/product-store";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -199,13 +200,23 @@ function NearbyCard({ item, delay, onNav }: { item: any; delay: number; onNav: (
 
 // ─── Buyer Dashboard (Overview) ───────────────────────────────────────────────
 
-function Overview({ onNav }: { onNav: (id: string, productId?: number) => void }) {
+function Overview({ onNav, userLocation }: { onNav: (id: string, productId?: number) => void; userLocation?: string | null }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [listedProducts, setListedProducts] = useState<import("../lib/product-store").ListedProduct[]>([]);
 
   const { products, loading } = useProducts(activeCategory === "All" ? undefined : activeCategory);
   const { listings: p2pNearby, loading: p2pLoading } = useP2PNearby();
   const { user } = useAuthContext();
+
+  // Subscribe to in-memory product store (seller-listed products — Amazon owned only for Discover)
+  useEffect(() => {
+    setListedProducts(getListedProducts(userLocation || undefined, "amazon"));
+    const unsub = subscribeProducts(() => {
+      setListedProducts(getListedProducts(userLocation || undefined, "amazon"));
+    });
+    return unsub;
+  }, [userLocation]);
 
   const allProducts = products || [];
   const topPicks = allProducts.filter(p => p.tag === "top-pick" || p.tag === "recommended");
@@ -224,7 +235,7 @@ function Overview({ onNav }: { onNav: (id: string, productId?: number) => void }
           <div className="flex items-center gap-2 mb-3">
             <p className="text-gray-900 text-xl font-bold">Good morning, {user?.email || "User"} 👋</p>
             <span className="ml-2 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1 text-xs font-bold text-green-700">
-              <Wallet className="w-3.5 h-3.5" /> 340 pts · ₹34 cashback ready
+              <Wallet className="w-3.5 h-3.5" /> {(() => { const c = JSON.parse(localStorage.getItem(`amazon_relife_credits_${user?.email || 'guest'}`) || '{"total_points": 100}'); return `${c.total_points} pts · ₹${Math.round(c.total_points / 10)} cashback ready`; })()}
             </span>
           </div>
           <p className="text-gray-400 text-sm mb-4">Here are today's best refurbished finds, curated just for you.</p>
@@ -403,6 +414,57 @@ function Overview({ onNav }: { onNav: (id: string, productId?: number) => void }
           </section>
         )}
 
+        {/* ── Seller-Listed Products (from in-memory store) ────────────── */}
+        {listedProducts.length > 0 && (
+          <section>
+            <SectionHeader
+              icon={ShoppingBag} color="text-amber-500"
+              title={`Available in ${(userLocation || "your area").charAt(0).toUpperCase() + (userLocation || "your area").slice(1)}`}
+              sub="Recently listed by sellers · AI-graded & routed"
+            />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              {listedProducts.map((item, i) => (
+                <motion.div
+                  key={item.id}
+                  className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.22 }}
+                  whileHover={{ y: -2 }}
+                  onClick={() => onNav("checkout", item.id)}
+                >
+                  {item.imageUrl && (
+                    <div className="relative bg-gray-50 aspect-[4/3] overflow-hidden">
+                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1 border text-[10px] font-black rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 border-amber-200">
+                        <Zap className="w-3 h-3" />
+                        Amazon Verified
+                      </div>
+                      <div className="absolute bottom-2.5 right-2.5 bg-green-600 text-white text-[10px] font-black rounded-full px-2 py-0.5 capitalize">
+                        {item.condition}
+                      </div>
+                    </div>
+                  )}
+                  <div className="p-3.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="text-[10px] font-black border rounded-full px-1.5 py-px bg-amber-100 text-amber-700 border-amber-200 capitalize">{item.condition}</span>
+                      <span className="text-[10px] text-gray-400 capitalize">{item.category.replace(/_/g, " ")}</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900 leading-snug mb-1 line-clamp-2">{item.name}</p>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-lg font-black text-gray-900">₹{Number(item.price).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Leaf className="w-3 h-3 text-green-600 flex-shrink-0" />
+                      <span className="text-[10px] text-green-700 font-semibold">Eco-certified · {item.location.toUpperCase()}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ── Near You (P2P) ──────────────────────────────────────────────── */}
         {!p2pLoading && p2pNearby && p2pNearby.length > 0 && (
           <section>
@@ -498,7 +560,7 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string) 
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-gray-300 truncate">{user?.email || "Rahul Sharma"}</p>
-            <p className="text-[10px] text-gray-600 truncate">340 pts · Eco Level 2</p>
+            <p className="text-[10px] text-gray-600 truncate">{(() => { const c = JSON.parse(localStorage.getItem(`amazon_relife_credits_${user?.email || 'guest'}`) || '{"total_points": 100}'); return `${c.total_points} pts · Eco Level ${Math.floor(c.total_points / 500) + 1}`; })()}</p>
           </div>
         </div>
       </div>
@@ -513,6 +575,9 @@ export default function App() {
   const [screen, setScreen] = useState("home");
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
   const [notification, setNotification] = useState<Donation | null>(null);
+  const [userLocation, setUserLocation] = useState<string | null>(null);
+
+  const LOCATIONS = ["delhi", "chennai", "mumbai", "lucknow", "kolkata", "prayagraj"];
 
   useDonationListener((newDonation) => {
     // Show notification for donations by other users
@@ -530,6 +595,38 @@ export default function App() {
     return <Login onLogin={() => {}} />;
   }
 
+  // Location picker — shows every time until user picks one (resets on reload)
+  if (!userLocation) {
+    return (
+      <div className="flex items-center justify-center h-full bg-[#111827]">
+        <motion.div
+          className="bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <MapPin className="w-7 h-7 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Select Your Location</h2>
+            <p className="text-sm text-gray-400 mt-1">Choose your city to see products available near you</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {LOCATIONS.map(loc => (
+              <button
+                key={loc}
+                onClick={() => setUserLocation(loc)}
+                className="bg-gray-50 hover:bg-amber-50 border-2 border-gray-200 hover:border-amber-400 rounded-xl py-4 px-4 text-sm font-bold text-gray-700 hover:text-amber-700 capitalize cursor-pointer transition-all"
+              >
+                {loc}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   const handleNav = (id: string, productId?: number) => {
     if (productId) {
       setSelectedProductId(productId);
@@ -539,11 +636,11 @@ export default function App() {
 
   const renderScreen = (id: string) => {
     switch (id) {
-      case "checkout": return <CheckoutIntercept />;
+      case "checkout": return <CheckoutIntercept selectedProductId={selectedProductId} userLocation={userLocation} />;
       case "returns":  return <ReturnsPortal />;
-      case "seller":   return <SellerHub />;
+      case "seller":   return <SellerHub onNav={handleNav} />;
       case "buyer":    return <BuyerView productId={selectedProductId} />;
-      case "p2p":      return <P2PMatching />;
+      case "p2p":      return <P2PMatching onNav={handleNav} />;
       case "donations":return <DonationHub />;
       case "exchange": return <Exchange />;
       case "ops":      return <OpsDashboard />;
@@ -611,7 +708,7 @@ export default function App() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
             >
-              {screen === "home" ? <Overview onNav={handleNav} /> : renderScreen(screen)}
+              {screen === "home" ? <Overview onNav={handleNav} userLocation={userLocation} /> : renderScreen(screen)}
             </motion.div>
           </AnimatePresence>
         </div>

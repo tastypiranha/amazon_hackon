@@ -9,6 +9,7 @@ import { ArcGauge } from "./arc-gauge";
 import { useAuthContext } from "../../lib/AuthContext";
 import { submitGrading, insertEvent } from "../../lib/hooks";
 import { classifyImage, getDecision } from "../../lib/api";
+import { addListedProduct } from "../../lib/product-store";
 
 type Stage = "idle" | "uploading" | "analyzing" | "done" | "flagged";
 
@@ -190,9 +191,10 @@ function FlaggedPanel() {
 
 // ─── Grading results ──────────────────────────────────────────────────────────
 
-function GradingResults({ imageUrl, classificationResult, decisionResult }: { imageUrl: string; classificationResult?: any; decisionResult?: any }) {
+function GradingResults({ imageUrl, classificationResult, decisionResult, onNav, modelName, selectedCategory, sellerLocation, sellerPrice }: { imageUrl: string; classificationResult?: any; decisionResult?: any; onNav?: (id: string) => void; modelName?: string; selectedCategory?: string; sellerLocation?: string; sellerPrice?: string }) {
   const { user } = useAuthContext();
   const [accepted, setAccepted] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [exchange, setExchange] = useState<ExchangeType>("amazon");
 
   // Real classification data from backend
@@ -224,25 +226,107 @@ function GradingResults({ imageUrl, classificationResult, decisionResult }: { im
 
   const handleAccept = async () => {
     setAccepted(true);
-    if (!user) return;
     
-    const returnId = Math.floor(Math.random() * 100) + 1;
+    // Add product to the listed products store
+    const bestWarehouse = (decisionResult?.best_warehouse || "").toLowerCase() || sellerLocation || "delhi";
+    const condition = classifiedCondition || "resell";
     
-    await submitGrading({
-      return_id: returnId,
-      grade: grade,
-      defects: [],
-      confidence: confidence,
-      routing_decision: activeExchange.label,
-      payout_amount: sellerGets || 0
-    });
-    
-    await insertEvent({
-      type: "grading",
-      title: `Item Graded: ${grade}`,
-      description: `Condition: ${classifiedCondition} | Routed to ${activeExchange.label}`,
-      metadata: { grade, condition: classifiedCondition, routing: activeExchange.label, k_max: kMax }
-    });
+    // Customer-facing price = S_i at best warehouse (the market selling price)
+    // For Amazon buy: it's selling_price_si
+    // For Option 1 (lower price): it's prices_comparison[condition] at best warehouse
+    let customerPrice: number;
+    if (isAmazonBuy) {
+      customerPrice = decisionResult?.selling_price_si || parseFloat(sellerPrice || "0");
+    } else {
+      // Use the selling price for this condition at best warehouse
+      customerPrice = decisionResult?.prices_comparison?.[condition] || parseFloat(sellerPrice || "0");
+    }
+
+    if (isAmazonBuy || selectedOption === "option_1") {
+      addListedProduct({
+        id: Date.now(),
+        name: modelName || "Unnamed Product",
+        category: selectedCategory || "electrical_appliances",
+        condition: condition,
+        price: customerPrice,
+        originalPrice: parseFloat(sellerPrice || "0"),
+        location: bestWarehouse,
+        sellerLocation: sellerLocation || "delhi",
+        imageUrl: imageUrl,
+        listedAt: new Date().toISOString(),
+        listingType: "amazon",
+      });
+    } else if (selectedOption === "option_2") {
+      // P2P local listing — listed at seller's own location
+      addListedProduct({
+        id: Date.now(),
+        name: modelName || "Unnamed Product",
+        category: selectedCategory || "electrical_appliances",
+        condition: condition,
+        price: parseFloat(sellerPrice || "0"),
+        originalPrice: parseFloat(sellerPrice || "0"),
+        location: sellerLocation || "delhi",
+        sellerLocation: sellerLocation || "delhi",
+        imageUrl: imageUrl,
+        listedAt: new Date().toISOString(),
+        listingType: "p2p",
+      });
+    } else if (selectedOption === "option_3") {
+      // Exchange listing
+      addListedProduct({
+        id: Date.now(),
+        name: modelName || "Unnamed Product",
+        category: selectedCategory || "electrical_appliances",
+        condition: condition,
+        price: parseFloat(sellerPrice || "0"),
+        originalPrice: parseFloat(sellerPrice || "0"),
+        location: sellerLocation || "delhi",
+        sellerLocation: sellerLocation || "delhi",
+        imageUrl: imageUrl,
+        listedAt: new Date().toISOString(),
+        listingType: "exchange",
+      });
+    } else if (selectedOption === "option_4") {
+      // Donation listing
+      addListedProduct({
+        id: Date.now(),
+        name: modelName || "Unnamed Product",
+        category: selectedCategory || "electrical_appliances",
+        condition: condition,
+        price: 0,
+        originalPrice: parseFloat(sellerPrice || "0"),
+        location: sellerLocation || "delhi",
+        sellerLocation: sellerLocation || "delhi",
+        imageUrl: imageUrl,
+        listedAt: new Date().toISOString(),
+        listingType: "donate",
+      });
+    }
+
+    // Log the event (non-blocking)
+    if (user) {
+      insertEvent({
+        type: "grading",
+        title: `Item Graded: ${grade}`,
+        description: `Condition: ${classifiedCondition} | Selected: ${selectedOption || "amazon_buyback"} | Listed at: ${bestWarehouse}`,
+        metadata: { grade, condition: classifiedCondition, selectedOption, k_max: kMax, warehouse: bestWarehouse }
+      }).catch(() => {});
+    }
+
+    // Navigate to the appropriate page based on selection
+    if (onNav) {
+      setTimeout(() => {
+        if (isAmazonBuy || selectedOption === "option_1") {
+          onNav("home"); // Go to Discover — product is now listed there
+        } else if (selectedOption === "option_2") {
+          onNav("p2p");
+        } else if (selectedOption === "option_3") {
+          onNav("exchange");
+        } else if (selectedOption === "option_4") {
+          onNav("donations");
+        }
+      }, 2000);
+    }
   };
 
   return (
@@ -273,28 +357,40 @@ function GradingResults({ imageUrl, classificationResult, decisionResult }: { im
           {!isAmazonBuy && options && (
             <div className="space-y-3">
               {options.option_1_lower_price && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <div 
+                  onClick={() => setSelectedOption("option_1")}
+                  className={`rounded-xl p-3 cursor-pointer transition-all border-2 ${selectedOption === "option_1" ? "border-blue-500 bg-blue-50 shadow-sm" : "border-blue-200 bg-blue-50/50 hover:border-blue-300"}`}
+                >
                   <p className="text-xs font-bold text-blue-900">Option 1: Lower Your Price</p>
                   <p className="text-[10px] text-blue-700 mt-0.5">{options.option_1_lower_price.description}</p>
                   <p className="text-sm font-black text-blue-800 mt-1">Revised: ₹{Number(options.option_1_lower_price.revised_price).toLocaleString("en-IN")}</p>
                 </div>
               )}
               {options.option_2_list_locally && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                <div 
+                  onClick={() => setSelectedOption("option_2")}
+                  className={`rounded-xl p-3 cursor-pointer transition-all border-2 ${selectedOption === "option_2" ? "border-green-500 bg-green-50 shadow-sm" : "border-green-200 bg-green-50/50 hover:border-green-300"}`}
+                >
                   <p className="text-xs font-bold text-green-900">Option 2: List Locally</p>
                   <p className="text-[10px] text-green-700 mt-0.5">{options.option_2_list_locally.description}</p>
                   <p className="text-sm font-black text-green-800 mt-1">Customer pays: ₹{Number(options.option_2_list_locally.customer_pays).toLocaleString("en-IN")}</p>
                 </div>
               )}
               {options.option_3_exchange && (
-                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+                <div 
+                  onClick={() => setSelectedOption("option_3")}
+                  className={`rounded-xl p-3 cursor-pointer transition-all border-2 ${selectedOption === "option_3" ? "border-violet-500 bg-violet-50 shadow-sm" : "border-violet-200 bg-violet-50/50 hover:border-violet-300"}`}
+                >
                   <p className="text-xs font-bold text-violet-900">Option 3: Exchange</p>
                   <p className="text-[10px] text-violet-700 mt-0.5">{options.option_3_exchange.description}</p>
                   <p className="text-sm font-black text-violet-800 mt-1">Item value: ₹{Number(options.option_3_exchange.your_item_value).toLocaleString("en-IN")}</p>
                 </div>
               )}
               {options.option_4_donate && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                <div 
+                  onClick={() => setSelectedOption("option_4")}
+                  className={`rounded-xl p-3 cursor-pointer transition-all border-2 ${selectedOption === "option_4" ? "border-rose-500 bg-rose-50 shadow-sm" : "border-rose-200 bg-rose-50/50 hover:border-rose-300"}`}
+                >
                   <p className="text-xs font-bold text-rose-900">Option 4: Donate</p>
                   <p className="text-[10px] text-rose-700 mt-0.5">{options.option_4_donate.description}</p>
                 </div>
@@ -307,14 +403,21 @@ function GradingResults({ imageUrl, classificationResult, decisionResult }: { im
               <motion.button
                 key="accept"
                 onClick={handleAccept}
-                className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold cursor-pointer transition-colors ${activeExchange.color}`}
-                whileTap={{ scale: 0.98 }}
+                disabled={!isAmazonBuy && !selectedOption}
+                className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold cursor-pointer transition-colors ${
+                  !isAmazonBuy && !selectedOption 
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                    : activeExchange.color
+                }`}
+                whileTap={(!isAmazonBuy && !selectedOption) ? undefined : { scale: 0.98 }}
                 exit={{ opacity: 0 }}
               >
                 <Zap className="w-4 h-4" />
                 {isAmazonBuy
                   ? `Accept Amazon Buyback · ₹${Number(sellerGets || 0).toLocaleString("en-IN")}`
-                  : "Proceed with Selected Option"
+                  : selectedOption 
+                    ? `Confirm ${selectedOption === "option_1" ? "Lower Price" : selectedOption === "option_2" ? "List Locally" : selectedOption === "option_3" ? "Exchange" : "Donate"}`
+                    : "Select an option above"
                 }
                 <ChevronRight className="w-3.5 h-3.5 ml-auto" />
               </motion.button>
@@ -325,7 +428,15 @@ function GradingResults({ imageUrl, classificationResult, decisionResult }: { im
                 initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
               >
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
-                <span className="text-green-700 text-sm font-bold">Accepted · Payout Initiated</span>
+                <span className="text-green-700 text-sm font-bold">
+                  {isAmazonBuy ? "Accepted · ₹" + Number(sellerGets || 0).toLocaleString("en-IN") + " credited · Product listed!" 
+                    : selectedOption === "option_1" ? "Transaction Successful · ₹" + Number(decisionResult?.options?.option_1_lower_price?.revised_price || 0).toLocaleString("en-IN") + " credited!"
+                    : selectedOption === "option_2" ? "Confirmed · Opening P2P Listing..."
+                    : selectedOption === "option_3" ? "Confirmed · Finding Exchange Matches..."
+                    : selectedOption === "option_4" ? "Confirmed · Opening Donation Hub..."
+                    : "Accepted"
+                  }
+                </span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -336,7 +447,7 @@ function GradingResults({ imageUrl, classificationResult, decisionResult }: { im
 }
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function SellerHub() {
+export function SellerHub({ onNav }: { onNav?: (id: string) => void }) {
   const [stage, setStage] = useState<Stage>("idle");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -354,7 +465,14 @@ export function SellerHub() {
 
   const processFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
-    setImageUrl(URL.createObjectURL(file));
+    
+    // Convert to base64 so it persists in localStorage across reloads
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImageUrl(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    
     currentFileRef.current = file;
     setStage("uploading");
     
@@ -690,7 +808,7 @@ export function SellerHub() {
               )}
               {stage === "done" && imageUrl && (
                 <motion.div key="results" className="p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <GradingResults imageUrl={imageUrl} classificationResult={classificationResult} decisionResult={decisionResult} />
+                  <GradingResults imageUrl={imageUrl} classificationResult={classificationResult} decisionResult={decisionResult} onNav={onNav} modelName={modelName} selectedCategory={selectedCategory} sellerLocation={sellerLocation} sellerPrice={sellerPrice} />
                 </motion.div>
               )}
               {stage === "flagged" && (

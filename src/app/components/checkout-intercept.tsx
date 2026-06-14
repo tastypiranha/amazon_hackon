@@ -1,21 +1,43 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Leaf, AlertTriangle, CheckCircle2,
-  Package, CreditCard, Lock, Info
+  Leaf, CheckCircle2,
+  CreditCard, Lock, Info
 } from "lucide-react";
-import { ArcGauge } from "./arc-gauge";
 import { useCart, updateCart } from "../../lib/hooks";
 import { useAuthContext } from "../../lib/AuthContext";
+import { getListedProducts, ListedProduct, removeListedProduct } from "../../lib/product-store";
 
-const RISK_FACTORS = [
-  { label: "Past Size 7 returns for this SKU",     value: "38%",   warn: true },
-  { label: "Nike silhouette fit variance",          value: "High",  warn: true },
-  { label: "Your purchase profile foot width",      value: "Wide",  warn: true },
-  { label: "Similar profile return rate vs avg",    value: "3×",    warn: true },
-];
 
-function InterceptModal({ onSwitch, onKeep }: { onSwitch: () => void; onKeep: () => void }) {
+function InterceptModal({ onSwitch, onKeep, cartItems }: { onSwitch: () => void; onKeep: () => void; cartItems: any[] }) {
+  const [greenPoints, setGreenPoints] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchGreenPoints() {
+      try {
+        const item = cartItems[0];
+        const category = item?.products?.category || item?.color || "electrical_appliances";
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/green-points`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            category: category.toLowerCase().replace(/ /g, "_"),
+            is_local: true,
+            condition: "resell",
+            logistics_fee: 0
+          })
+        });
+        const data = await res.json();
+        setGreenPoints(data);
+      } catch (err) {
+        console.error("Green points fetch failed:", err);
+      }
+      setLoading(false);
+    }
+    fetchGreenPoints();
+  }, [cartItems]);
+
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -29,70 +51,54 @@ function InterceptModal({ onSwitch, onKeep }: { onSwitch: () => void; onKeep: ()
         exit={{ scale: 0.97, opacity: 0 }}
         transition={{ type: "spring", stiffness: 340, damping: 30 }}
       >
-        <div className="h-0.5 w-full bg-gradient-to-r from-amber-400 to-orange-400" />
+        <div className="h-0.5 w-full bg-gradient-to-r from-green-400 to-emerald-500" />
 
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-gray-100">
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <div className="w-9 h-9 rounded-xl bg-green-50 border border-green-200 flex items-center justify-center flex-shrink-0">
+              <Leaf className="w-4 h-4 text-green-600" />
             </div>
             <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <h2 className="text-gray-900 text-sm font-bold">Return Risk Detected</h2>
-                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">ML ALERT</span>
-              </div>
-              <p className="text-gray-500 text-xs">XGBoost model flagged a sizing mismatch before processing.</p>
+              <h2 className="text-gray-900 text-sm font-bold">Green Purchase Reward</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Earn eco-credits by buying refurbished products</p>
             </div>
           </div>
         </div>
 
-        {/* Arc gauge + risk factors */}
+        {/* Green points data */}
         <div className="px-6 py-5 space-y-4">
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-            {/* Gauge + label row */}
-            <div className="flex items-start gap-4 mb-4">
-              <ArcGauge value={72} size={88} danger sublabel="risk" />
-              <div className="pt-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Return Probability</p>
-                <p className="text-3xl font-black text-amber-600">72%</p>
-                <p className="text-xs text-gray-500 mt-0.5">High risk · Size mismatch detected</p>
-              </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <motion.div className="w-8 h-8 rounded-full border-2 border-green-200 border-t-green-600" animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }} />
             </div>
+          ) : greenPoints ? (
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">You'll Earn</p>
+                <p className="text-4xl font-black text-green-700">{greenPoints.final_points}</p>
+                <p className="text-sm text-green-600 font-semibold mt-1">Green Credits</p>
+              </div>
 
-            {/* AI risk factors */}
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">AI Risk Factors</p>
-              {RISK_FACTORS.map((f, i) => (
-                <motion.div
-                  key={f.label}
-                  className="flex items-center justify-between bg-white border border-amber-100 rounded-lg px-3 py-2"
-                  initial={{ opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + i * 0.06 }}
-                >
-                  <span className="text-xs text-gray-600">{f.label}</span>
-                  <span className="text-xs font-black text-amber-700 ml-3 flex-shrink-0">{f.value}</span>
-                </motion.div>
-              ))}
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
+                  <p className="text-lg font-black text-gray-900">₹{greenPoints.cashback_value_inr}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Cashback Value</p>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
+                  <p className="text-lg font-black text-gray-900">{greenPoints.co2_saved_kg} kg</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">CO₂ Saved</p>
+                </div>
+              </div>
 
-          {/* Eco offer */}
-          <div className="border border-green-200 bg-green-50 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-green-100 border border-green-200 flex items-center justify-center flex-shrink-0">
-                <Leaf className="w-3.5 h-3.5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-gray-800 text-xs font-semibold mb-0.5">
-                  Switch to Size 8 for a Green Keep-It Discount
-                </p>
-                <p className="text-green-700 text-2xl font-bold">5% off</p>
-                <p className="text-gray-400 text-[11px] mt-1">Saves ~2.3 kg CO₂ · Applied automatically</p>
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <p className="text-xs text-emerald-800">By buying refurbished, you're keeping this product out of landfill and reducing carbon emissions.</p>
               </div>
             </div>
-          </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-4">Could not calculate green points</p>
+          )}
         </div>
 
         {/* Actions */}
@@ -103,14 +109,14 @@ function InterceptModal({ onSwitch, onKeep }: { onSwitch: () => void; onKeep: ()
             whileTap={{ scale: 0.98 }}
           >
             <Leaf className="w-4 h-4" />
-            Switch to Size 8 & Apply Discount
+            Complete Purchase & Earn Credits
           </motion.button>
           <motion.button
             onClick={onKeep}
             className="w-full flex items-center justify-center border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50 rounded-xl py-2.5 text-sm font-medium cursor-pointer transition-colors"
             whileTap={{ scale: 0.98 }}
           >
-            Keep Size 7 & Continue
+            Cancel
           </motion.button>
         </div>
       </motion.div>
@@ -118,9 +124,11 @@ function InterceptModal({ onSwitch, onKeep }: { onSwitch: () => void; onKeep: ()
   );
 }
 
-function SuccessState({ switched, onDismiss }: { switched: boolean; onDismiss: () => void }) {
+function SuccessState({ switched, onDismiss, finalTotal }: { switched: boolean; onDismiss: () => void; finalTotal: number }) {
+  const earnedCredits = Math.round(finalTotal * 0.10); // 10% of amount spent
+  
   useEffect(() => {
-    const timer = setTimeout(onDismiss, 3000);
+    const timer = setTimeout(onDismiss, 6000);
     return () => clearTimeout(timer);
   }, [onDismiss]);
 
@@ -137,60 +145,76 @@ function SuccessState({ switched, onDismiss }: { switched: boolean; onDismiss: (
         transition={{ type: "spring", stiffness: 320, damping: 28 }}
         onClick={e => e.stopPropagation()}
       >
-        <div className={`h-0.5 w-full ${switched ? "bg-green-500" : "bg-gray-300"}`} />
+        <div className="h-0.5 w-full bg-green-500" />
         <div className="px-6 py-10 flex flex-col items-center text-center gap-4">
           <motion.div
-            className={`w-14 h-14 rounded-full flex items-center justify-center ${switched ? "bg-green-100" : "bg-gray-100"}`}
+            className="w-14 h-14 rounded-full flex items-center justify-center bg-green-100"
             initial={{ scale: 0 }} animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 400, delay: 0.1 }}
           >
-            <CheckCircle2 className={`w-7 h-7 ${switched ? "text-green-600" : "text-gray-400"}`} />
+            <CheckCircle2 className="w-7 h-7 text-green-600" />
           </motion.div>
           <div>
-            <h2 className="text-gray-900 font-bold">{switched ? "Discount Applied" : "Order Continuing"}</h2>
-            <p className="text-gray-400 text-sm mt-1.5 leading-relaxed">
-              {switched ? "Size updated to 8 · 5% discount applied to cart." : "Continuing with Size 7."}
+            <h2 className="text-gray-900 font-bold text-lg">Purchase Successful!</h2>
+            <p className="text-gray-500 text-sm mt-2 leading-relaxed">
+              <span className="font-bold text-green-700">{earnedCredits} green credits</span> will be added to your account after <span className="font-bold text-gray-700">7 days</span> (return period).
             </p>
           </div>
-          {switched && (
-            <motion.div
-              className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-2"
-              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            >
-              <Leaf className="w-3.5 h-3.5 text-green-600" />
-              <span className="text-green-700 text-sm font-semibold">−2.3 kg CO₂ · ₹650 saved</span>
-            </motion.div>
-          )}
         </div>
-        {/* Auto-dismiss progress bar */}
         <motion.div
-          className={`h-0.5 ${switched ? "bg-green-500" : "bg-gray-400"}`}
+          className="h-0.5 bg-green-500"
           initial={{ width: "100%" }}
           animate={{ width: "0%" }}
-          transition={{ duration: 3, ease: "linear" }}
+          transition={{ duration: 6, ease: "linear" }}
         />
       </motion.div>
     </motion.div>
   );
 }
 
-// Fallback cart data for the demo if user has no actual cart items in DB
-const DEMO_CART = [
-  { id: 1, products: { name: "Nike Air Max 270", image_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop&auto=format" }, size: 7, color: "Black / White", price: 12999, quantity: 1 },
-  { id: 2, products: { name: "Lululemon Align Jogger", image_url: "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=120&h=120&fit=crop&auto=format" }, size: "M", color: "Heathered Navy", price: 8999, quantity: 1 },
-];
+// No more hardcoded demo cart
 
-export function CheckoutIntercept() {
+export function CheckoutIntercept({ selectedProductId, userLocation }: { selectedProductId?: number; userLocation?: string | null }) {
   const { user } = useAuthContext();
   const { cart, loading } = useCart(user?.id || "");
 
-  const [showModal, setShowModal] = useState(false);
   const [result, setResult] = useState<null | "switched" | "kept">(null);
+  const [useGreenCredits, setUseGreenCredits] = useState(false);
+  const [purchased, setPurchased] = useState(false);
 
   if (loading) return <div className="p-8 text-gray-500">Loading cart...</div>;
 
-  // Use DB cart if it exists, otherwise use demo cart for the hackathon prototype
-  const cartItems = cart.length > 0 ? cart : DEMO_CART as any[];
+  // Check if a product from the store was selected
+  const allListedProducts = getListedProducts();
+  const selectedProduct = selectedProductId ? allListedProducts.find(p => p.id === selectedProductId) : null;
+
+  // Build cart items: use selected product if available, else DB cart
+  let cartItems: any[];
+  if (selectedProduct) {
+    cartItems = [{
+      id: selectedProduct.id,
+      products: { name: selectedProduct.name, image_url: selectedProduct.imageUrl || "" },
+      size: "—",
+      color: selectedProduct.condition,
+      price: selectedProduct.price,
+      quantity: 1,
+    }];
+  } else if (cart.length > 0) {
+    cartItems = cart;
+  } else {
+    cartItems = [];
+  }
+
+  // If cart is empty or purchase completed, show empty state
+  if (cartItems.length === 0 || purchased) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center text-center py-20">
+        <CreditCard className="w-10 h-10 text-gray-200 mb-4" />
+        <h2 className="text-lg font-bold text-gray-900">Your cart is empty</h2>
+        <p className="text-sm text-gray-400 mt-1">Browse products in Discover and add them to checkout.</p>
+      </div>
+    );
+  }
 
   const displayItems = cartItems.map(item =>
     result === "switched" && item.id === 1 ? { ...item, size: 8, price: item.price * 0.95 } : item
@@ -198,13 +222,64 @@ export function CheckoutIntercept() {
   
   const subtotal = displayItems.reduce((s, i) => s + (i.price * i.quantity), 0);
 
-  const handleSwitch = async () => {
-    setShowModal(false);
+  // Transaction fee = processing fee at buyer's location
+  const PROCESSING_FEES: Record<string, number> = {
+    delhi: 15, chennai: 18, mumbai: 12, lucknow: 38, kolkata: 28, prayagraj: 45
+  };
+  const transactionFee = PROCESSING_FEES[(userLocation || "delhi").toLowerCase()] || 15;
+
+  // Load user's available green credits (initialize with 100 if new user)
+  const creditsKey = `amazon_relife_credits_${user?.email || 'guest'}`;
+  if (!localStorage.getItem(creditsKey)) {
+    localStorage.setItem(creditsKey, JSON.stringify({ total_points: 100, transactions: [] }));
+  }
+  const storedCredits = JSON.parse(localStorage.getItem(creditsKey) || '{"total_points": 100}');
+  const availablePoints = storedCredits.total_points || 100;
+  const creditDiscount = Math.min(availablePoints / 10, subtotal + transactionFee); // 10 pts = ₹1
+  const finalTotal = useGreenCredits ? Math.max(0, Math.round(subtotal + transactionFee - creditDiscount)) : Math.round(subtotal + transactionFee);
+
+  const handlePay = async () => {
     setResult("switched");
     
-    // In a real app, update DB. Here we just simulate since we might be using demo data
-    if (cart.length > 0 && cart[0].id === 1) {
-      await updateCart([{ id: cart[0].id, size: "8", price: cart[0].price * 0.95 }]);
+    // Deduct green credits if used
+    if (useGreenCredits && creditDiscount > 0) {
+      const pointsUsed = Math.round(creditDiscount * 10);
+      const current = JSON.parse(localStorage.getItem(creditsKey) || '{"total_points": 100, "transactions": []}');
+      current.total_points = Math.max(0, current.total_points - pointsUsed);
+      current.transactions.push({ points: -pointsUsed, type: "redeemed", date: new Date().toISOString() });
+      localStorage.setItem(creditsKey, JSON.stringify(current));
+    }
+
+    // Award new green credits for this eco-purchase
+    try {
+      const item = cartItems[0];
+      const category = item?.products?.category || item?.color || "electrical_appliances";
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/green-points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: category.toLowerCase().replace(/ /g, "_"),
+          is_local: true,
+          condition: "resell",
+          logistics_fee: 0
+        })
+      });
+      const data = await res.json();
+      
+      const current = JSON.parse(localStorage.getItem(creditsKey) || '{"total_points": 0, "transactions": []}');
+      current.total_points += data.final_points;
+      current.transactions.push({ points: data.final_points, co2_kg: data.co2_saved_kg, cashback: data.cashback_value_inr, type: "earned", date: new Date().toISOString() });
+      localStorage.setItem(creditsKey, JSON.stringify(current));
+    } catch (err) {
+      console.error("Failed to award green credits:", err);
+    }
+
+    // Remove product from store after popup dismisses
+    if (selectedProductId) {
+      setTimeout(() => {
+        removeListedProduct(selectedProductId);
+        setPurchased(true);
+      }, 6500);
     }
   };
 
@@ -218,18 +293,6 @@ export function CheckoutIntercept() {
             {(user?.email || "User").split('@')[0]} · SESSION #8821
           </span>
         </div>
-        <p className="text-gray-400 text-sm">XGBoost return-risk model · triggered at cart review</p>
-      </div>
-
-      {/* ML alert */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3.5 flex items-start gap-3 mb-6">
-        <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-        <p className="text-sm text-amber-900">
-          <strong>Amazon ReLife ML Engine</strong> — 72% return probability detected on Nike Air Max 270 (Size 7).{" "}
-          <button onClick={() => result === null && setShowModal(true)} className="underline font-semibold cursor-pointer hover:no-underline">
-            Review size recommendation →
-          </button>
-        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -248,16 +311,7 @@ export function CheckoutIntercept() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{item.products?.name}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Size {item.size}</span>
-                  <span className="text-xs text-gray-400">{item.color}</span>
-                  {item.id === 1 && result === "switched" && (
-                    <motion.span
-                      className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 rounded-full px-2 py-px"
-                      initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                    >
-                      Updated · 5% off
-                    </motion.span>
-                  )}
+                  <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 capitalize">{item.color}</span>
                 </div>
               </div>
               <div className="text-right">
@@ -266,20 +320,6 @@ export function CheckoutIntercept() {
               </div>
             </motion.div>
           ))}
-
-          {/* Risk metrics */}
-          <div className="grid grid-cols-3 gap-3 mt-2">
-            {[
-              { label: "Return Risk",  value: "72%",    color: "text-amber-600" },
-              { label: "Affected SKU", value: "1 of 2", color: "text-gray-700" },
-              { label: "CO₂ at stake", value: "2.3 kg", color: "text-green-600" },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="bg-white border border-gray-100 rounded-xl p-3.5">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{label}</p>
-                <p className={`text-lg font-bold ${color}`}>{value}</p>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Summary */}
@@ -297,27 +337,35 @@ export function CheckoutIntercept() {
               ))}
 
               <div className="border-t border-gray-100 pt-3 space-y-2">
-                {result === "switched" && (
-                  <motion.div className="flex items-center justify-between" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <span className="text-xs text-green-700 font-medium">Green Discount (5%)</span>
-                    <span className="text-xs font-bold text-green-700">−₹{Math.round(cartItems[0].price * 0.05).toLocaleString("en-IN")}</span>
-                  </motion.div>
-                )}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Shipping</span>
-                  <span className="text-xs font-semibold text-green-600">Free</span>
+                  <span className="text-xs text-gray-500">Transaction Fee</span>
+                  <span className="text-xs font-semibold text-gray-700">₹{transactionFee}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={useGreenCredits} 
+                      onChange={e => setUseGreenCredits(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-green-600 cursor-pointer"
+                    />
+                    <span className="text-xs text-green-700 font-medium">Use Green Credits ({availablePoints} pts = ₹{Math.round(creditDiscount)})</span>
+                  </label>
+                  {useGreenCredits && (
+                    <span className="text-xs font-bold text-green-700">−₹{Math.round(creditDiscount).toLocaleString("en-IN")}</span>
+                  )}
                 </div>
               </div>
 
               <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-gray-900">Total</span>
-                <motion.span key={subtotal} className="text-lg font-bold text-gray-900">
-                  ₹{Math.round(subtotal).toLocaleString("en-IN")}
+                <motion.span key={finalTotal} className="text-lg font-bold text-gray-900">
+                  ₹{finalTotal.toLocaleString("en-IN")}
                 </motion.span>
               </div>
 
               <motion.button
-                onClick={() => result === null && setShowModal(true)}
+                onClick={() => result === null && handlePay()}
                 disabled={result !== null}
                 className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold cursor-pointer transition-colors ${
                   result !== null ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-[#FF9900] hover:bg-amber-500 text-gray-900"
@@ -338,17 +386,9 @@ export function CheckoutIntercept() {
       </div>
 
       <AnimatePresence>
-        {showModal && (
-          <InterceptModal
-            onSwitch={handleSwitch}
-            onKeep={() => { setShowModal(false); setResult("kept"); }}
-          />
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
         {result !== null && (
           <motion.div key="success" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <SuccessState switched={result === "switched"} onDismiss={() => setResult(null)} />
+            <SuccessState switched={result === "switched"} onDismiss={() => setResult(null)} finalTotal={finalTotal} />
           </motion.div>
         )}
       </AnimatePresence>

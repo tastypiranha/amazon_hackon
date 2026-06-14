@@ -132,7 +132,7 @@ export function OpsDashboard() {
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
         >
           <div className="mb-6">
-            <h2 className="text-sm font-bold text-gray-900">Re-Circ OS Flow</h2>
+            <h2 className="text-sm font-bold text-gray-900">Amazon ReLife Flow</h2>
             <p className="text-xs text-gray-400 mt-1">Live active connections</p>
           </div>
           

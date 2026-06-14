@@ -4,7 +4,7 @@ from typing import Tuple, Dict, Any
 from datetime import datetime, timedelta
 
 # ============================================================================
-# RE-CIRC OS - Green Engine ("Karma Engine")
+# AMAZON RELIFE - Green Engine ("Karma Engine")
 # ============================================================================
 # Handles all Gamification, Carbon Tracking, and Eco-Score Logic
 # Strictly decoupled from the financial math of decision_engine.py
@@ -156,7 +156,7 @@ def apply_fee_waiver(current_points: int, required_fee: float) -> Tuple[int, flo
 
 if __name__ == "__main__":
     print("\n" + "="*60)
-    print(" RE-CIRC OS: GREEN ENGINE VERIFICATION SUITE")
+    print(" AMAZON RELIFE: GREEN ENGINE VERIFICATION SUITE")
     print("="*60)
 
     # ───────────────────────────────────────────────────────────────────────

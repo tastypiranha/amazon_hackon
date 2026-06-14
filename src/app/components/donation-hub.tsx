@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { createDonation } from "../../lib/hooks";
 import { useAuthContext } from "../../lib/AuthContext";
-
+import { listDonation, checkoutDonation } from "../../lib/api";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -386,8 +386,17 @@ function PostDonation() {
 
       {/* Submit */}
       <motion.button
-        onClick={handleDonate}
-        disabled={!itemName || !description || isSubmitting}
+        onClick={async () => { 
+          if (itemName && description) {
+            try {
+              await listDonation("bengaluru", category.toLowerCase(), description);
+            } catch (err) {
+              console.error("Backend donation call failed:", err);
+            }
+            setPosted(true); 
+          }
+        }}
+        disabled={!itemName || !description}
         className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold cursor-pointer transition-colors ${
           itemName && description && !isSubmitting
             ? "bg-rose-500 hover:bg-rose-600 text-white"

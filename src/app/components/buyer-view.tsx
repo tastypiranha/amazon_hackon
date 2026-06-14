@@ -110,7 +110,7 @@ function HealthCard({ grade, co2 }: { grade: string; co2: number }) {
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">AI Confidence</p>
                   <p className="text-2xl font-black text-green-700">94.2%</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Re-Circ Vision v2.4</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Amazon ReLife Vision v2.4</p>
                 </div>
               </div>
 
@@ -216,7 +216,7 @@ function GreenWallet({ pts, co2 }: { pts: number; co2: number }) {
           </div>
           {nextTier && (
             <p className="text-[10px] text-gray-400 mt-1.5">
-              {nextTier.name} unlocks free shipping on all Re-Circ orders
+              {nextTier.name} unlocks free shipping on all Amazon ReLife orders
             </p>
           )}
         </div>
@@ -349,7 +349,7 @@ export function BuyerView({ productId = 1 }: { productId?: number }) {
             </div>
             <div className="absolute top-3 right-3 bg-green-600 text-white rounded-full px-2.5 py-1 shadow-sm flex items-center gap-1">
               <Leaf className="w-3 h-3" />
-              <span className="text-[10px] font-black">Re-Circed</span>
+              <span className="text-[10px] font-black">Amazon ReLifeed</span>
             </div>
             <button onClick={() => setLiked(v => !v)} className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm cursor-pointer">
               <Heart className={`w-4 h-4 ${liked ? "fill-red-500 text-red-500" : "text-gray-400"}`} />

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuthContext } from "../../lib/AuthContext";
 import { usePastOrders, createReturn, awardGreenCredits, insertEvent } from "../../lib/hooks";
+import { comparePhotos, classifyImage } from "../../lib/api";
 
 // Mock Past Orders
 const DEMO_PAST_ORDERS = [
@@ -54,6 +55,8 @@ export function ReturnsPortal() {
 
   const [step, setStep] = useState<"list" | "upload" | "processing" | "result">("list");
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<any>(null);
 
   if (loading) return <div className="p-8 text-gray-500">Loading orders...</div>;
 
@@ -70,34 +73,41 @@ export function ReturnsPortal() {
   const processReturn = async () => {
     setStep("processing");
     
-    // Simulate API calls
-    setTimeout(async () => {
-      if (user && selectedOrder) {
-        // Insert return record
-        await createReturn({
-          order_id: typeof selectedOrder.id === 'number' ? selectedOrder.id : 1, // Fallback for mock string IDs
-          user_id: user.id,
-          reason: "Customer preference",
-          condition_notes: "Item is in original condition, uploading photos.",
-          status: "pending_grading"
-        });
-
-        // Insert event
-        await insertEvent({
-          type: "return_initiated",
-          title: "Return Request Created",
-          description: `User requested return for ${selectedOrder.products?.name}`,
-          metadata: { order_id: selectedOrder.id }
-        });
-
-        // If it was a credit return, award points
-        const outcome = getReturnOutcome(selectedOrder);
-        if (outcome?.type === "credit") {
-          await awardGreenCredits(user.id, 500, 0, "circular_economy_trade_in");
+    try {
+      // If the user uploaded an image, try to classify it via backend
+      if (uploadedFile) {
+        const classResult = await classifyImage(uploadedFile, "electrical_appliances");
+        if (classResult && !classResult.error) {
+          setComparisonResult(classResult);
         }
       }
-      setStep("result");
-    }, 2500);
+    } catch (err) {
+      console.error("Backend classification failed, continuing with mock:", err);
+    }
+
+    // Continue with return processing
+    if (user && selectedOrder) {
+      await createReturn({
+        order_id: typeof selectedOrder.id === 'number' ? selectedOrder.id : 1,
+        user_id: user.id,
+        reason: "Customer preference",
+        condition_notes: "Item is in original condition, uploading photos.",
+        status: "pending_grading"
+      });
+
+      await insertEvent({
+        type: "return_initiated",
+        title: "Return Request Created",
+        description: `User requested return for ${selectedOrder.products?.name}`,
+        metadata: { order_id: selectedOrder.id }
+      });
+
+      const outcome = getReturnOutcome(selectedOrder);
+      if (outcome?.type === "credit") {
+        await awardGreenCredits(user.id, 500, 0, "circular_economy_trade_in");
+      }
+    }
+    setStep("result");
   };
 
   // Determine return outcome based on the item (simulating Phase 2A/2B decisions)
@@ -201,12 +211,33 @@ export function ReturnsPortal() {
                   </div>
                 </div>
 
-                <div className="border-2 border-dashed border-gray-200 rounded-3xl p-12 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 hover:border-indigo-300 transition-all cursor-pointer group mb-8">
+                <div className="border-2 border-dashed border-gray-200 rounded-3xl p-12 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 hover:border-indigo-300 transition-all cursor-pointer group mb-8"
+                  onClick={() => document.getElementById('return-upload')?.click()}
+                >
+                  <input 
+                    id="return-upload" 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) setUploadedFile(f);
+                    }}
+                  />
                   <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 group-hover:scale-110 transition-transform">
                     <UploadCloud className="w-6 h-6 text-indigo-500" />
                   </div>
-                  <p className="text-sm font-bold text-gray-900">Click to upload photos</p>
-                  <p className="text-xs text-gray-400 mt-1">Supports JPG, PNG, HEIC</p>
+                  {uploadedFile ? (
+                    <>
+                      <p className="text-sm font-bold text-green-700">✓ {uploadedFile.name}</p>
+                      <p className="text-xs text-gray-400 mt-1">Click to change</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold text-gray-900">Click to upload photos</p>
+                      <p className="text-xs text-gray-400 mt-1">Supports JPG, PNG, HEIC</p>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex justify-end">

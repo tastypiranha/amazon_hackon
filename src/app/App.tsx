@@ -453,11 +453,11 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string) 
       <div className="px-5 py-5 border-b border-white/8">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0 p-1">
-            <img src={rcLogo} alt="Re-Circ" className="w-full h-full object-contain" />
+            <img src={rcLogo} alt="Amazon ReLife" className="w-full h-full object-contain" />
           </div>
-          <span className="text-white font-bold tracking-tight">re-circ</span>
+          <span className="text-white font-bold tracking-tight">Amazon ReLife</span>
         </div>
-        <p className="text-[10px] text-gray-500 mt-1.5 ml-9">Returns Intelligence OS</p>
+        <p className="text-[10px] text-gray-500 mt-1.5 ml-9">Sustainable Commerce Platform</p>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -585,7 +585,7 @@ export default function App() {
         {/* Top bar */}
         <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <span>Re-Circ OS</span>
+            <span>Amazon ReLife</span>
             <ChevronRight className="w-3 h-3" />
             <span className="text-gray-700 font-semibold">
               {NAV.find(n => n.id === screen)?.label ?? "Discover"}

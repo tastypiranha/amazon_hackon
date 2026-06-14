@@ -225,7 +225,7 @@ export function CheckoutIntercept() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3.5 flex items-start gap-3 mb-6">
         <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
         <p className="text-sm text-amber-900">
-          <strong>Re-Circ ML Engine</strong> — 72% return probability detected on Nike Air Max 270 (Size 7).{" "}
+          <strong>Amazon ReLife ML Engine</strong> — 72% return probability detected on Nike Air Max 270 (Size 7).{" "}
           <button onClick={() => result === null && setShowModal(true)} className="underline font-semibold cursor-pointer hover:no-underline">
             Review size recommendation →
           </button>

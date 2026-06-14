@@ -29,18 +29,11 @@ export function Login({ onLogin }: LoginProps) {
     setError("");
     setLoading(true);
     
-    // First try to sign in
-    let { error: authError } = await signIn(email, password);
-    
-    // Auto-signup for demo purposes if user doesn't exist
-    if (authError && authError.message.includes("Invalid login credentials")) {
-      const { error: signUpError } = await signUp(email, password);
-      authError = signUpError;
-    }
+    const result = await signIn(email, password);
     
     setLoading(false);
-    if (authError) {
-      setError(authError.message);
+    if (result.error) {
+      setError(result.error.message);
     } else {
       onLogin();
     }
@@ -70,9 +63,9 @@ export function Login({ onLogin }: LoginProps) {
         {/* Logo */}
         <div className="relative flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center p-1 flex-shrink-0">
-            <img src={rcLogo} alt="Re-Circ" className="w-full h-full object-contain" />
+            <img src={rcLogo} alt="Amazon ReLife" className="w-full h-full object-contain" />
           </div>
-          <span className="text-white text-lg font-bold tracking-tight">re-circ</span>
+          <span className="text-white text-lg font-bold tracking-tight">Amazon ReLife</span>
         </div>
 
         {/* Hero copy */}
@@ -83,7 +76,7 @@ export function Login({ onLogin }: LoginProps) {
             transition={{ delay: 0.2 }}
           >
             <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest mb-3">
-              Returns Intelligence OS
+              Sustainable Commerce Platform
             </p>
             <h1 className="text-white text-4xl leading-tight mb-4">
               Close the loop on<br />every return.
@@ -117,7 +110,7 @@ export function Login({ onLogin }: LoginProps) {
             transition={{ delay: 0.5 }}
           >
             <p className="text-gray-300 text-sm leading-relaxed italic">
-              "Re-Circ cut our return rate by 34% in the first quarter. The ML intercept alone paid for the platform."
+              "Amazon ReLife cut our return rate by 34% in the first quarter. The ML intercept alone paid for the platform."
             </p>
             <div className="flex items-center gap-2 mt-3">
               <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
@@ -149,14 +142,14 @@ export function Login({ onLogin }: LoginProps) {
           {/* Mobile logo */}
           <div className="flex items-center gap-2.5 mb-10 lg:hidden">
             <div className="w-8 h-8 rounded-xl bg-[#0D1117] flex items-center justify-center p-1">
-              <img src={rcLogo} alt="Re-Circ" className="w-full h-full object-contain invert" />
+              <img src={rcLogo} alt="Amazon ReLife" className="w-full h-full object-contain invert" />
             </div>
-            <span className="text-gray-900 text-base font-bold">re-circ</span>
+            <span className="text-gray-900 text-base font-bold">Amazon ReLife</span>
           </div>
 
           <div className="mb-8">
             <h2 className="text-gray-900 text-2xl font-bold mb-1.5">Welcome back</h2>
-            <p className="text-gray-400 text-sm">Sign in to your Re-Circ OS account</p>
+            <p className="text-gray-400 text-sm">Sign in to your Amazon ReLife account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

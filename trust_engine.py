@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Any
 
 # ============================================================================
-# RE-CIRC OS - Trust Engine ("Re-Circ Trust Index")
+# AMAZON RELIFE - Trust Engine ("Amazon ReLife Trust Index")
 # ============================================================================
 # Computes a 0-100 reputation score used exclusively as a public social signal
 # to facilitate safe Peer-to-Peer (P2P) trading.
@@ -37,7 +37,7 @@ MAX_ECO_POINTS_THRESHOLD = 10000  # Cap eco score scaling at 10,000 points
 
 def calculate_trust_index(profile: TrustProfileDTO) -> float:
     """
-    Computes the 0-100 Re-Circ Trust Index based on four behavioral pillars.
+    Computes the 0-100 Amazon ReLife Trust Index based on four behavioral pillars.
     Gracefully handles new users with zero history by defaulting to BASE_TRUST_SCORE.
     """
     # 1. Honesty Metric (Condition Accuracy)
@@ -118,7 +118,7 @@ def get_trust_badge(score: float) -> str:
 
 if __name__ == "__main__":
     print("\n" + "="*60)
-    print(" RE-CIRC OS: TRUST ENGINE VERIFICATION SUITE")
+    print(" AMAZON RELIFE: TRUST ENGINE VERIFICATION SUITE")
     print("="*60)
 
     # ───────────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import {
   ChevronRight, Package, Filter, Search, Zap,
   Plus, Clock, Shield, MessageCircle, TrendingUp
 } from "lucide-react";
+import { findExchangeMatches as findBackendMatches, checkoutExchange } from "../../lib/api";
 
 const LISTINGS = [
   {

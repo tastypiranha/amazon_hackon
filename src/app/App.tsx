@@ -14,6 +14,7 @@ import { BuyerView } from "./components/buyer-view";
 import { P2PMatching } from "./components/p2p-matching";
 import { OpsDashboard } from "./components/ops-dashboard";
 import { ReturnsPortal } from "./components/returns-portal";
+import { Login } from "./components/login";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -560,7 +561,12 @@ function renderScreen(id: string) {
 }
 
 export default function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
   const [screen, setScreen] = useState("home");
+
+  if (!loggedIn) {
+    return <Login onLogin={() => setLoggedIn(true)} />;
+  }
 
   return (
     <div className="flex h-full bg-[#111827]">

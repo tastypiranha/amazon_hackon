@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Zap,
   BarChart2,
-  Activity
+  Activity,
+  ArrowRight
 } from "lucide-react";
 
 // ─── Simple CountUp ──────────────────────────────────────────────────────────
@@ -117,7 +118,7 @@ export function OpsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Left: Circular Economy Loop Visualization */}
         <motion.div 
-          className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col"
+          className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col h-[400px]"
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
         >
           <div className="mb-6">
@@ -175,7 +176,7 @@ export function OpsDashboard() {
 
         {/* Right: Live Activity Feed */}
         <motion.div 
-          className="bg-white border border-gray-100 rounded-2xl shadow-sm flex flex-col overflow-hidden"
+          className="bg-white border border-gray-100 rounded-2xl shadow-sm flex flex-col overflow-hidden h-[400px]"
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
         >
           <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -186,11 +187,12 @@ export function OpsDashboard() {
             <Activity className="w-4 h-4 text-gray-400" />
           </div>
           <div className="flex-1 p-5 overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white pointer-events-none z-10" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white pointer-events-none z-10" />
             <div className="space-y-3">
-              <AnimatePresence initial={false}>
+              <AnimatePresence mode="popLayout" initial={false}>
                 {events.map((event, i) => (
                   <motion.div
+                    layout
                     key={event.id}
                     initial={{ opacity: 0, y: -20, scale: 0.95 }}
                     animate={{ opacity: 1 - i * 0.15, y: 0, scale: 1 }}
@@ -298,6 +300,60 @@ export function OpsDashboard() {
             </div>
           </div>
         </motion.div>
+      </div>
+
+      {/* Returns & Routing Logs Table */}
+      <div className="mt-6 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Returns & Routing Logs</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Live tracking of returned items and their AI-determined routing destination</p>
+          </div>
+          <Activity className="w-4 h-4 text-gray-400" />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-white border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Item ID</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Product</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Condition Grade</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Origin → Destination</th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Action / Routing</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 font-mono text-xs text-gray-500">RET-9921</td>
+                <td className="px-6 py-4 font-bold text-gray-900">Sony WH-1000XM5</td>
+                <td className="px-6 py-4"><span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-black">A-</span></td>
+                <td className="px-6 py-4 text-xs text-gray-500 flex items-center gap-1">Mumbai <ArrowRight className="w-3 h-3"/> Delhi</td>
+                <td className="px-6 py-4"><span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-bold">Relist (Amazon-Owned)</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 font-mono text-xs text-gray-500">RET-8842</td>
+                <td className="px-6 py-4 font-bold text-gray-900">Nike Air Max</td>
+                <td className="px-6 py-4"><span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-[10px] font-black">C</span></td>
+                <td className="px-6 py-4 text-xs text-gray-500 flex items-center gap-1">Chennai <ArrowRight className="w-3 h-3"/> Circular Hub</td>
+                <td className="px-6 py-4"><span className="bg-teal-100 text-teal-700 px-3 py-1 rounded-lg text-xs font-bold">Donate / Recycle</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 font-mono text-xs text-gray-500">RET-7719</td>
+                <td className="px-6 py-4 font-bold text-gray-900">Apple Watch SE</td>
+                <td className="px-6 py-4"><span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-black">B-</span></td>
+                <td className="px-6 py-4 text-xs text-gray-500 flex items-center gap-1">Lucknow <ArrowRight className="w-3 h-3"/> Refurbish Facility</td>
+                <td className="px-6 py-4"><span className="bg-violet-100 text-violet-700 px-3 py-1 rounded-lg text-xs font-bold">Refurbish</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 font-mono text-xs text-gray-500">RET-6602</td>
+                <td className="px-6 py-4 font-bold text-gray-900">Samsung S22</td>
+                <td className="px-6 py-4"><span className="bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full text-[10px] font-black">B+</span></td>
+                <td className="px-6 py-4 text-xs text-gray-500 flex items-center gap-1">Prayagraj <ArrowRight className="w-3 h-3"/> Prayagraj (Seller)</td>
+                <td className="px-6 py-4"><span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-lg text-xs font-bold">Return to Seller</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

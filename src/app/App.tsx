@@ -5,7 +5,7 @@ import {
   Leaf, ShoppingCart, Cpu, Shield, Users,
   LayoutDashboard, TrendingUp, BarChart2,
   Search, Star, ShoppingBag, Heart, ChevronRight,
-  Wallet, Zap, MapPin, Clock, Flame, BadgePercent, Sparkles
+  Wallet, Zap, MapPin, Clock, Flame, BadgePercent, Sparkles, RotateCcw
 } from "lucide-react";
 
 import { CheckoutIntercept } from "./components/checkout-intercept";
@@ -13,6 +13,7 @@ import { SellerHub } from "./components/seller-hub";
 import { BuyerView } from "./components/buyer-view";
 import { P2PMatching } from "./components/p2p-matching";
 import { OpsDashboard } from "./components/ops-dashboard";
+import { ReturnsPortal } from "./components/returns-portal";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ const NAV = [
   { id: "checkout", label: "Checkout Intercept", icon: ShoppingCart },
   { id: "seller",   label: "Seller Hub",         icon: Cpu },
   { id: "p2p",      label: "P2P Matching",       icon: Users },
+  { id: "returns",  label: "Returns Portal",     icon: RotateCcw },
   { id: "ops",      label: "Ops Dashboard",      icon: BarChart2 },
 ];
 
@@ -548,6 +550,7 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string) 
 function renderScreen(id: string) {
   switch (id) {
     case "checkout": return <CheckoutIntercept />;
+    case "returns":  return <ReturnsPortal />;
     case "seller":   return <SellerHub />;
     case "buyer":    return <BuyerView />;
     case "p2p":      return <P2PMatching />;

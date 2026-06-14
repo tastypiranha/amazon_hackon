@@ -16,6 +16,10 @@ import { OpsDashboard } from "./components/ops-dashboard";
 import { ReturnsPortal } from "./components/returns-portal";
 import { Login } from "./components/login";
 
+import { useProducts, useP2PNearby } from "../lib/hooks";
+import { useAuthContext } from "../lib/AuthContext";
+import { Product } from "../lib/types";
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV = [
@@ -27,78 +31,9 @@ const NAV = [
   { id: "ops",      label: "Ops Dashboard",      icon: BarChart2 },
 ];
 
-// ─── Product data ─────────────────────────────────────────────────────────────
-
-const PRODUCTS = [
-  {
-    id: 1, name: "Sony WH-1000XM5", brand: "Sony", category: "Audio",
-    grade: "A-", original: 24990, price: 18500, discount: 26, co2: 4.2,
-    rating: 4.6, reviews: 2841, fairScore: 96,
-    img: "https://images.unsplash.com/photo-1612858249816-5a91a9fb9886?w=400&h=400&fit=crop&auto=format",
-    tag: "top-pick", tagLabel: "Top Pick",
-  },
-  {
-    id: 2, name: "Nike Air Force 1", brand: "Nike", category: "Footwear",
-    grade: "B+", original: 10995, price: 5999, discount: 45, co2: 2.1,
-    rating: 4.4, reviews: 1203, fairScore: 91,
-    img: "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=400&h=400&fit=crop&auto=format",
-    tag: "lowest", tagLabel: "Lowest Price",
-  },
-  {
-    id: 3, name: "Apple Watch SE", brand: "Apple", category: "Wearables",
-    grade: "A", original: 29900, price: 19800, discount: 34, co2: 3.8,
-    rating: 4.7, reviews: 4102, fairScore: 98,
-    img: "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=400&h=400&fit=crop&auto=format",
-    tag: "fair", tagLabel: "Fairest Deal",
-  },
-  {
-    id: 4, name: "MacBook Pro 14\"", brand: "Apple", category: "Laptops",
-    grade: "B+", original: 199900, price: 129000, discount: 35, co2: 18.4,
-    rating: 4.8, reviews: 892, fairScore: 89,
-    img: "https://images.unsplash.com/photo-1511385348-a52b4a160dc2?w=400&h=400&fit=crop&auto=format",
-    tag: "recommended", tagLabel: "Recommended",
-  },
-  {
-    id: 5, name: "JBL Flip 6", brand: "JBL", category: "Audio",
-    grade: "A-", original: 11999, price: 6799, discount: 43, co2: 1.6,
-    rating: 4.5, reviews: 3210, fairScore: 94,
-    img: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=400&fit=crop&auto=format",
-    tag: "lowest", tagLabel: "Lowest Price",
-  },
-  {
-    id: 6, name: "Sony A7 III", brand: "Sony", category: "Cameras",
-    grade: "A", original: 189990, price: 124000, discount: 35, co2: 12.1,
-    rating: 4.9, reviews: 412, fairScore: 97,
-    img: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&h=400&fit=crop&auto=format",
-    tag: "fair", tagLabel: "Fairest Deal",
-  },
-  {
-    id: 7, name: "Nike Air Max 270", brand: "Nike", category: "Footwear",
-    grade: "B+", original: 12999, price: 6999, discount: 46, co2: 2.3,
-    rating: 4.3, reviews: 876, fairScore: 88,
-    img: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=400&h=400&fit=crop&auto=format",
-    tag: "lowest", tagLabel: "Lowest Price",
-  },
-  {
-    id: 8, name: "Apple Watch Ultra", brand: "Apple", category: "Wearables",
-    grade: "A", original: 89900, price: 58000, discount: 35, co2: 5.9,
-    rating: 4.8, reviews: 301, fairScore: 99,
-    img: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=400&fit=crop&auto=format",
-    tag: "fair", tagLabel: "Fairest Deal",
-  },
-];
-
 const CATEGORIES = ["All", "Audio", "Footwear", "Wearables", "Laptops", "Cameras", "Phones"];
 
-const P2P_NEARBY = [
-  { name: "Philips Baby Monitor", grade: "B+", price: 4200, original: 8499, distance: "1.2 km", seller: "Meera S.", co2: 3.1, img: "https://images.unsplash.com/photo-1566004100631-35d015d6a491?w=300&h=300&fit=crop&auto=format" },
-  { name: "Levi's 511 Jeans (32W)", grade: "A-", price: 1599, original: 3499, distance: "2.8 km", seller: "Arjun M.", co2: 0.8, img: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=300&h=300&fit=crop&auto=format" },
-  { name: "Instant Pot Duo", grade: "B+", price: 3800, original: 7999, distance: "3.5 km", seller: "Keerthi R.", co2: 4.4, img: "https://images.unsplash.com/photo-1585515320310-259814833e62?w=300&h=300&fit=crop&auto=format" },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-type Product = typeof PRODUCTS[0];
 
 const TAG_STYLES: Record<string, string> = {
   "top-pick":    "bg-orange-100 text-orange-700 border-orange-200",
@@ -116,7 +51,7 @@ const GRADE_COLOR: Record<string, string> = {
 
 // ─── Product card ─────────────────────────────────────────────────────────────
 
-function ProductCard({ p, delay = 0, onNav }: { p: Product; delay?: number; onNav: (id: string) => void }) {
+function ProductCard({ p, delay = 0, onNav }: { p: Product; delay?: number; onNav: (id: string, productId?: number) => void }) {
   const [liked, setLiked] = useState(false);
 
   return (
@@ -129,14 +64,16 @@ function ProductCard({ p, delay = 0, onNav }: { p: Product; delay?: number; onNa
     >
       {/* Image */}
       <div className="relative bg-gray-50 aspect-[4/3] overflow-hidden">
-        <img src={p.img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         {/* Tag */}
-        <div className={`absolute top-2.5 left-2.5 flex items-center gap-1 border text-[10px] font-black rounded-full px-2 py-0.5 ${TAG_STYLES[p.tag]}`}>
-          {p.tag === "top-pick" && <Flame className="w-3 h-3" />}
-          {p.tag === "lowest" && <BadgePercent className="w-3 h-3" />}
-          {p.tag === "fair" && <Sparkles className="w-3 h-3" />}
-          {p.tagLabel}
-        </div>
+        {p.tag && p.tagLabel && (
+          <div className={`absolute top-2.5 left-2.5 flex items-center gap-1 border text-[10px] font-black rounded-full px-2 py-0.5 ${TAG_STYLES[p.tag] || TAG_STYLES["fair"]}`}>
+            {p.tag === "top-pick" && <Flame className="w-3 h-3" />}
+            {p.tag === "lowest" && <BadgePercent className="w-3 h-3" />}
+            {p.tag === "fair" && <Sparkles className="w-3 h-3" />}
+            {p.tagLabel}
+          </div>
+        )}
         {/* Like */}
         <button
           onClick={e => { e.stopPropagation(); setLiked(v => !v); }}
@@ -151,9 +88,9 @@ function ProductCard({ p, delay = 0, onNav }: { p: Product; delay?: number; onNa
       </div>
 
       {/* Content */}
-      <div className="p-3.5" onClick={() => onNav("buyer")}>
+      <div className="p-3.5" onClick={() => onNav("buyer", p.id)}>
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[p.grade]}`}>
+          <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[p.grade] || "bg-gray-100"}`}>
             {p.grade}
           </span>
           <span className="text-[10px] text-gray-400 font-medium">{p.brand}</span>
@@ -166,25 +103,25 @@ function ProductCard({ p, delay = 0, onNav }: { p: Product; delay?: number; onNa
         <div className="flex items-center gap-1 mb-2.5">
           <div className="flex items-center gap-0.5">
             {[...Array(5)].map((_, i) => (
-              <Star key={i} className={`w-3 h-3 ${i < Math.floor(p.rating) ? "fill-[#FF9900] text-[#FF9900]" : "text-gray-200"}`} />
+              <Star key={i} className={`w-3 h-3 ${i < Math.floor(Number(p.rating) || 0) ? "fill-[#FF9900] text-[#FF9900]" : "text-gray-200"}`} />
             ))}
           </div>
-          <span className="text-[10px] text-gray-400">({p.reviews.toLocaleString()})</span>
+          <span className="text-[10px] text-gray-400">({(p.reviews || 0).toLocaleString()})</span>
         </div>
 
         <div className="flex items-baseline gap-2 mb-2">
-          <span className="text-lg font-black text-gray-900">₹{p.price.toLocaleString("en-IN")}</span>
-          <span className="text-sm text-gray-300 line-through">₹{p.original.toLocaleString("en-IN")}</span>
+          <span className="text-lg font-black text-gray-900">₹{Number(p.price).toLocaleString("en-IN")}</span>
+          <span className="text-sm text-gray-300 line-through">₹{Number(p.original_price).toLocaleString("en-IN")}</span>
         </div>
 
         <div className="flex items-center gap-1.5 mb-3">
           <Leaf className="w-3 h-3 text-green-600 flex-shrink-0" />
-          <span className="text-[10px] text-green-700 font-semibold">Saves {p.co2} kg CO₂</span>
-          <span className="ml-auto text-[10px] text-gray-400">Fair score: <strong className="text-gray-700">{p.fairScore}</strong></span>
+          <span className="text-[10px] text-green-700 font-semibold">Saves {p.co2_saved} kg CO₂</span>
+          <span className="ml-auto text-[10px] text-gray-400">Fair score: <strong className="text-gray-700">{p.fair_score}</strong></span>
         </div>
 
         <button
-          onClick={e => { e.stopPropagation(); onNav("buyer"); }}
+          onClick={e => { e.stopPropagation(); onNav("buyer", p.id); }}
           className="w-full flex items-center justify-center gap-1.5 bg-[#FF9900] hover:bg-amber-500 text-gray-900 font-bold rounded-xl py-2.5 text-xs cursor-pointer transition-colors"
         >
           <ShoppingBag className="w-3.5 h-3.5" />
@@ -222,7 +159,8 @@ function SectionHeader({ icon: Icon, title, sub, color = "text-gray-400", action
 
 // ─── Nearby P2P card ──────────────────────────────────────────────────────────
 
-function NearbyCard({ item, delay, onNav }: { item: typeof P2P_NEARBY[0]; delay: number; onNav: (id: string) => void }) {
+function NearbyCard({ item, delay, onNav }: { item: any; delay: number; onNav: (id: string) => void }) {
+  const p = item.products || {};
   return (
     <motion.div
       className="bg-white border border-gray-100 rounded-2xl overflow-hidden flex gap-4 p-4 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer"
@@ -232,21 +170,23 @@ function NearbyCard({ item, delay, onNav }: { item: typeof P2P_NEARBY[0]; delay:
       onClick={() => onNav("p2p")}
     >
       <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
-        <img src={item.img} alt={item.name} className="w-full h-full object-cover" />
+        <img src={p.image_url} alt={item.title} className="w-full h-full object-cover" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5">
-          <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[item.grade]}`}>{item.grade}</span>
-          <span className="flex items-center gap-0.5 text-[10px] text-gray-400"><MapPin className="w-3 h-3" />{item.distance}</span>
+          <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[item.condition] || "bg-gray-100"}`}>{item.condition}</span>
+          <span className="flex items-center gap-0.5 text-[10px] text-gray-400"><MapPin className="w-3 h-3" />{item.location}</span>
         </div>
-        <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
-        <p className="text-[10px] text-gray-400 mt-0.5">by {item.seller}</p>
+        <p className="text-sm font-semibold text-gray-900 truncate">{item.title}</p>
+        <p className="text-[10px] text-gray-400 mt-0.5">by Seller</p>
         <div className="flex items-baseline gap-1.5 mt-1.5">
-          <span className="text-base font-black text-gray-900">₹{item.price.toLocaleString("en-IN")}</span>
-          <span className="text-xs text-gray-300 line-through">₹{item.original.toLocaleString("en-IN")}</span>
-          <span className="ml-auto flex items-center gap-0.5 text-[10px] text-green-700 font-semibold">
-            <Leaf className="w-3 h-3" />{item.co2} kg CO₂
-          </span>
+          <span className="text-base font-black text-gray-900">₹{Number(item.ask_price).toLocaleString("en-IN")}</span>
+          {p.original_price && <span className="text-xs text-gray-300 line-through">₹{Number(p.original_price).toLocaleString("en-IN")}</span>}
+          {p.co2_saved && (
+            <span className="ml-auto flex items-center gap-0.5 text-[10px] text-green-700 font-semibold">
+              <Leaf className="w-3 h-3" />{p.co2_saved} kg CO₂
+            </span>
+          )}
         </div>
       </div>
     </motion.div>
@@ -255,17 +195,22 @@ function NearbyCard({ item, delay, onNav }: { item: typeof P2P_NEARBY[0]; delay:
 
 // ─── Buyer Dashboard (Overview) ───────────────────────────────────────────────
 
-function Overview({ onNav }: { onNav: (id: string) => void }) {
+function Overview({ onNav }: { onNav: (id: string, productId?: number) => void }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [likedIds, setLikedIds] = useState<number[]>([]);
 
-  const topPicks = PRODUCTS.filter(p => p.tag === "top-pick" || p.tag === "recommended");
-  const lowestPrices = PRODUCTS.filter(p => p.tag === "lowest");
-  const fairestDeals = PRODUCTS.filter(p => p.tag === "fair");
-  const filtered = activeCategory === "All"
-    ? PRODUCTS
-    : PRODUCTS.filter(p => p.category === activeCategory);
+  const { products, loading } = useProducts(activeCategory === "All" ? undefined : activeCategory);
+  const { listings: p2pNearby, loading: p2pLoading } = useP2PNearby();
+  const { user } = useAuthContext();
+
+  const allProducts = products || [];
+  const topPicks = allProducts.filter(p => p.tag === "top-pick" || p.tag === "recommended");
+  const lowestPrices = allProducts.filter(p => p.tag === "lowest");
+  const fairestDeals = allProducts.filter(p => p.tag === "fair");
+
+  if (loading) {
+    return <div className="p-8 text-gray-500">Loading products...</div>;
+  }
 
   return (
     <div className="min-h-full">
@@ -273,7 +218,7 @@ function Overview({ onNav }: { onNav: (id: string) => void }) {
       <div className="bg-white border-b border-gray-100 px-8 py-6">
         <div className="max-w-3xl">
           <div className="flex items-center gap-2 mb-3">
-            <p className="text-gray-900 text-xl font-bold">Good morning, Rahul 👋</p>
+            <p className="text-gray-900 text-xl font-bold">Good morning, {user?.email || "User"} 👋</p>
             <span className="ml-2 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1 text-xs font-bold text-green-700">
               <Wallet className="w-3.5 h-3.5" /> 340 pts · ₹34 cashback ready
             </span>
@@ -297,188 +242,198 @@ function Overview({ onNav }: { onNav: (id: string) => void }) {
       <div className="px-8 py-7 space-y-10">
 
         {/* ── Today's Top Picks ───────────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            icon={Flame} color="text-orange-500"
-            title="Today's Top Picks"
-            sub="Curated daily · highest demand + best grades"
-            action="See all"
-          />
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-            {PRODUCTS.slice(0, 4).map((p, i) => (
-              <ProductCard key={p.id} p={p} delay={i * 0.05} onNav={onNav} />
-            ))}
-          </div>
-        </section>
+        {topPicks.length > 0 && (
+          <section>
+            <SectionHeader
+              icon={Flame} color="text-orange-500"
+              title="Today's Top Picks"
+              sub="Curated daily · highest demand + best grades"
+              action="See all"
+            />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              {topPicks.slice(0, 4).map((p, i) => (
+                <ProductCard key={p.id} p={p} delay={i * 0.05} onNav={onNav} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Lowest Prices ───────────────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            icon={BadgePercent} color="text-blue-500"
-            title="Lowest Prices"
-            sub="Best-value certified-refurbished items right now"
-            action="See all"
-          />
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            {lowestPrices.concat(PRODUCTS[3]).map((p, i) => (
-              <motion.div
-                key={p.id}
-                className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group flex gap-4 p-4"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.06 }}
-                whileHover={{ y: -1 }}
-                onClick={() => onNav("buyer")}
-              >
-                <div className="w-20 h-20 rounded-xl bg-gray-50 overflow-hidden flex-shrink-0">
-                  <img src={p.img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[p.grade]}`}>{p.grade}</span>
-                    <span className="text-[10px] text-gray-400">{p.category}</span>
+        {lowestPrices.length > 0 && (
+          <section>
+            <SectionHeader
+              icon={BadgePercent} color="text-blue-500"
+              title="Lowest Prices"
+              sub="Best-value certified-refurbished items right now"
+              action="See all"
+            />
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {lowestPrices.slice(0, 3).map((p, i) => (
+                <motion.div
+                  key={p.id}
+                  className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group flex gap-4 p-4"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  whileHover={{ y: -1 }}
+                  onClick={() => onNav("buyer", p.id)}
+                >
+                  <div className="w-20 h-20 rounded-xl bg-gray-50 overflow-hidden flex-shrink-0">
+                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   </div>
-                  <p className="text-sm font-bold text-gray-900 truncate">{p.name}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{p.brand}</p>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-lg font-black text-gray-900">₹{p.price.toLocaleString("en-IN")}</span>
-                    <span className="text-xs text-gray-300 line-through">₹{p.original.toLocaleString("en-IN")}</span>
-                    <span className="text-xs font-black text-red-600 ml-auto">{p.discount}% off</span>
-                  </div>
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <Leaf className="w-3 h-3 text-green-500 flex-shrink-0" />
-                    <span className="text-[10px] text-green-700">Saves {p.co2} kg CO₂</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Fairest Deals ───────────────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            icon={Sparkles} color="text-emerald-600"
-            title="Fairest Deals"
-            sub="Highest grade-to-price ratio · independently scored"
-            action="See all"
-          />
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            {fairestDeals.map((p, i) => (
-              <motion.div
-                key={p.id}
-                className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.07 }}
-                onClick={() => onNav("buyer")}
-              >
-                <div className="relative bg-gray-50 h-36 overflow-hidden">
-                  <img src={p.img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  {/* Fair score overlay */}
-                  <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 bg-white/90 border border-emerald-200 rounded-full px-2.5 py-1 shadow-sm">
-                    <Sparkles className="w-3 h-3 text-emerald-600" />
-                    <span className="text-[10px] font-black text-emerald-700">Fair Score: {p.fairScore}</span>
-                  </div>
-                  <div className="absolute top-2.5 right-2.5 bg-red-600 text-white text-[10px] font-black rounded-full px-2 py-0.5">{p.discount}% off</div>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[p.grade]}`}>{p.grade}</span>
-                    <span className="text-[10px] text-gray-400">{p.brand} · {p.category}</span>
-                  </div>
-                  <p className="text-sm font-bold text-gray-900 mb-1">{p.name}</p>
-                  <div className="flex items-center gap-0.5 mb-3">
-                    {[...Array(5)].map((_, i) => <Star key={i} className={`w-3 h-3 ${i < Math.floor(p.rating) ? "fill-[#FF9900] text-[#FF9900]" : "text-gray-200"}`} />)}
-                    <span className="text-[10px] text-gray-400 ml-1">({p.reviews.toLocaleString()})</span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl font-black text-gray-900">₹{p.price.toLocaleString("en-IN")}</span>
-                    <span className="text-sm text-gray-300 line-through">₹{p.original.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={e => { e.stopPropagation(); onNav("buyer"); }}
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-[#FF9900] hover:bg-amber-500 text-gray-900 font-bold rounded-xl py-2.5 text-xs cursor-pointer transition-colors"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      Buy · ₹{p.price.toLocaleString("en-IN")}
-                    </button>
-                    <div className="flex items-center gap-1 text-[10px] text-green-700 font-semibold">
-                      <Leaf className="w-3.5 h-3.5 text-green-500" />{p.co2} kg
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[p.grade] || "bg-gray-100"}`}>{p.grade}</span>
+                      <span className="text-[10px] text-gray-400">{p.category}</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900 truncate">{p.name}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{p.brand}</p>
+                    <div className="flex items-baseline gap-2 mt-2">
+                      <span className="text-lg font-black text-gray-900">₹{Number(p.price).toLocaleString("en-IN")}</span>
+                      <span className="text-xs text-gray-300 line-through">₹{Number(p.original_price).toLocaleString("en-IN")}</span>
+                      <span className="text-xs font-black text-red-600 ml-auto">{p.discount}% off</span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <Leaf className="w-3 h-3 text-green-500 flex-shrink-0" />
+                      <span className="text-[10px] text-green-700">Saves {p.co2_saved} kg CO₂</span>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Fairest Deals ───────────────────────────────────────────────── */}
+        {fairestDeals.length > 0 && (
+          <section>
+            <SectionHeader
+              icon={Sparkles} color="text-emerald-600"
+              title="Fairest Deals"
+              sub="Highest grade-to-price ratio · independently scored"
+              action="See all"
+            />
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {fairestDeals.map((p, i) => (
+                <motion.div
+                  key={p.id}
+                  className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.07 }}
+                  onClick={() => onNav("buyer", p.id)}
+                >
+                  <div className="relative bg-gray-50 h-36 overflow-hidden">
+                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    {/* Fair score overlay */}
+                    <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 bg-white/90 border border-emerald-200 rounded-full px-2.5 py-1 shadow-sm">
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
+                      <span className="text-[10px] font-black text-emerald-700">Fair Score: {p.fair_score}</span>
+                    </div>
+                    <div className="absolute top-2.5 right-2.5 bg-red-600 text-white text-[10px] font-black rounded-full px-2 py-0.5">{p.discount}% off</div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className={`text-[10px] font-black border rounded-full px-1.5 py-px ${GRADE_COLOR[p.grade] || "bg-gray-100"}`}>{p.grade}</span>
+                      <span className="text-[10px] text-gray-400">{p.brand} · {p.category}</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900 mb-1">{p.name}</p>
+                    <div className="flex items-center gap-0.5 mb-3">
+                      {[...Array(5)].map((_, i) => <Star key={i} className={`w-3 h-3 ${i < Math.floor(Number(p.rating) || 0) ? "fill-[#FF9900] text-[#FF9900]" : "text-gray-200"}`} />)}
+                      <span className="text-[10px] text-gray-400 ml-1">({(p.reviews || 0).toLocaleString()})</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xl font-black text-gray-900">₹{Number(p.price).toLocaleString("en-IN")}</span>
+                      <span className="text-sm text-gray-300 line-through">₹{Number(p.original_price).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={e => { e.stopPropagation(); onNav("buyer", p.id); }}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-[#FF9900] hover:bg-amber-500 text-gray-900 font-bold rounded-xl py-2.5 text-xs cursor-pointer transition-colors"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        Buy · ₹{Number(p.price).toLocaleString("en-IN")}
+                      </button>
+                      <div className="flex items-center gap-1 text-[10px] text-green-700 font-semibold">
+                        <Leaf className="w-3.5 h-3.5 text-green-500" />{p.co2_saved} kg
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Browse by category ──────────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            icon={Search} color="text-violet-500"
-            title="Browse All"
-            sub="Filter by category · all AI-graded, all refurbished"
-          />
+        {allProducts.length > 0 && (
+          <section>
+            <SectionHeader
+              icon={Search} color="text-violet-500"
+              title="Browse All"
+              sub="Filter by category · all AI-graded, all refurbished"
+            />
 
-          {/* Category pills */}
-          <div className="flex items-center gap-2 mb-5 flex-wrap">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`text-xs font-bold rounded-full px-3.5 py-1.5 border cursor-pointer transition-colors ${
-                  activeCategory === cat
-                    ? "bg-gray-900 text-white border-gray-900"
-                    : "bg-white text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-800"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+            {/* Category pills */}
+            <div className="flex items-center gap-2 mb-5 flex-wrap">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`text-xs font-bold rounded-full px-3.5 py-1.5 border cursor-pointer transition-colors ${
+                    activeCategory === cat
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "bg-white text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-800"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
 
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-            {filtered.map((p, i) => (
-              <ProductCard key={p.id} p={p} delay={i * 0.04} onNav={onNav} />
-            ))}
-          </div>
-        </section>
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              {allProducts.map((p, i) => (
+                <ProductCard key={p.id} p={p} delay={i * 0.04} onNav={onNav} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Near You (P2P) ──────────────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            icon={MapPin} color="text-green-600"
-            title="Near You"
-            sub="Peer-to-peer listings within 5 km · instant contact"
-            action="View all matches"
-          />
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            {P2P_NEARBY.map((item, i) => (
-              <NearbyCard key={item.name} item={item} delay={i * 0.07} onNav={onNav} />
-            ))}
-          </div>
+        {!p2pLoading && p2pNearby && p2pNearby.length > 0 && (
+          <section>
+            <SectionHeader
+              icon={MapPin} color="text-green-600"
+              title="Near You"
+              sub="Peer-to-peer listings within 5 km · instant contact"
+              action="View all matches"
+            />
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {p2pNearby.map((item, i) => (
+                <NearbyCard key={item.id} item={item} delay={i * 0.07} onNav={onNav} />
+              ))}
+            </div>
 
-          <motion.div
-            className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-6 py-5 flex items-center gap-4"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-          >
-            <div className="w-10 h-10 rounded-xl bg-green-100 border border-green-200 flex items-center justify-center flex-shrink-0">
-              <Zap className="w-5 h-5 text-green-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-green-900">Have something you no longer need?</p>
-              <p className="text-xs text-green-700 mt-0.5">List it in 30 seconds · our AI finds local buyers instantly.</p>
-            </div>
-            <button
-              onClick={() => onNav("p2p")}
-              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl px-4 py-2.5 cursor-pointer transition-colors whitespace-nowrap"
+            <motion.div
+              className="mt-4 bg-green-50 border border-green-200 rounded-2xl px-6 py-5 flex items-center gap-4"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
             >
-              List an item <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </motion.div>
-        </section>
+              <div className="w-10 h-10 rounded-xl bg-green-100 border border-green-200 flex items-center justify-center flex-shrink-0">
+                <Zap className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-green-900">Have something you no longer need?</p>
+                <p className="text-xs text-green-700 mt-0.5">List it in 30 seconds · our AI finds local buyers instantly.</p>
+              </div>
+              <button
+                onClick={() => onNav("p2p")}
+                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl px-4 py-2.5 cursor-pointer transition-colors whitespace-nowrap"
+              >
+                List an item <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          </section>
+        )}
 
       </div>
     </div>
@@ -488,6 +443,7 @@ function Overview({ onNav }: { onNav: (id: string) => void }) {
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onChange }: { active: string; onChange: (id: string) => void }) {
+  const { user } = useAuthContext();
   return (
     <div className="w-56 flex-shrink-0 bg-[#111827] flex flex-col h-full">
       <div className="px-5 py-5 border-b border-white/8">
@@ -534,10 +490,10 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string) 
       <div className="px-4 py-4 border-t border-white/8">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-            <span className="text-[11px] font-bold text-gray-300">R</span>
+            <span className="text-[11px] font-bold text-gray-300">{(user?.email || "R")[0].toUpperCase()}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-300 truncate">Rahul Sharma</p>
+            <p className="text-xs font-semibold text-gray-300 truncate">{user?.email || "Rahul Sharma"}</p>
             <p className="text-[10px] text-gray-600 truncate">340 pts · Eco Level 2</p>
           </div>
         </div>
@@ -548,29 +504,41 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string) 
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-function renderScreen(id: string) {
-  switch (id) {
-    case "checkout": return <CheckoutIntercept />;
-    case "returns":  return <ReturnsPortal />;
-    case "seller":   return <SellerHub />;
-    case "buyer":    return <BuyerView />;
-    case "p2p":      return <P2PMatching />;
-    case "ops":      return <OpsDashboard />;
-    default:         return null;
-  }
-}
-
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const { session, loading } = useAuthContext();
   const [screen, setScreen] = useState("home");
+  const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
 
-  if (!loggedIn) {
-    return <Login onLogin={() => setLoggedIn(true)} />;
+  if (loading) {
+    return <div className="flex items-center justify-center h-full bg-[#111827] text-white">Loading...</div>;
   }
+
+  if (!session) {
+    return <Login onLogin={() => {}} />;
+  }
+
+  const handleNav = (id: string, productId?: number) => {
+    if (productId) {
+      setSelectedProductId(productId);
+    }
+    setScreen(id);
+  };
+
+  const renderScreen = (id: string) => {
+    switch (id) {
+      case "checkout": return <CheckoutIntercept />;
+      case "returns":  return <ReturnsPortal />;
+      case "seller":   return <SellerHub />;
+      case "buyer":    return <BuyerView productId={selectedProductId} />;
+      case "p2p":      return <P2PMatching />;
+      case "ops":      return <OpsDashboard />;
+      default:         return null;
+    }
+  };
 
   return (
     <div className="flex h-full bg-[#111827]">
-      <Sidebar active={screen} onChange={setScreen} />
+      <Sidebar active={screen} onChange={(id) => handleNav(id)} />
 
       <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col h-full">
         {/* Top bar */}
@@ -602,7 +570,7 @@ export default function App() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
             >
-              {screen === "home" ? <Overview onNav={setScreen} /> : renderScreen(screen)}
+              {screen === "home" ? <Overview onNav={handleNav} /> : renderScreen(screen)}
             </motion.div>
           </AnimatePresence>
         </div>

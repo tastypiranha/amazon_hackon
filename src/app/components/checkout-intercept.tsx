@@ -5,11 +5,8 @@ import {
   Package, CreditCard, Lock, Info
 } from "lucide-react";
 import { ArcGauge } from "./arc-gauge";
-
-const CART = [
-  { id: 1, name: "Nike Air Max 270",       size: 7,   color: "Black / White",   price: 12999, qty: 1, img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop&auto=format" },
-  { id: 2, name: "Lululemon Align Jogger", size: "M", color: "Heathered Navy",  price: 8999, qty: 1, img: "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=120&h=120&fit=crop&auto=format" },
-];
+import { useCart, updateCart } from "../../lib/hooks";
+import { useAuthContext } from "../../lib/AuthContext";
 
 const RISK_FACTORS = [
   { label: "Past Size 7 returns for this SKU",     value: "38%",   warn: true },
@@ -177,14 +174,39 @@ function SuccessState({ switched, onDismiss }: { switched: boolean; onDismiss: (
   );
 }
 
+// Fallback cart data for the demo if user has no actual cart items in DB
+const DEMO_CART = [
+  { id: 1, products: { name: "Nike Air Max 270", image_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop&auto=format" }, size: 7, color: "Black / White", price: 12999, quantity: 1 },
+  { id: 2, products: { name: "Lululemon Align Jogger", image_url: "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=120&h=120&fit=crop&auto=format" }, size: "M", color: "Heathered Navy", price: 8999, quantity: 1 },
+];
+
 export function CheckoutIntercept() {
+  const { user } = useAuthContext();
+  const { cart, loading } = useCart(user?.id || "");
+
   const [showModal, setShowModal] = useState(false);
   const [result, setResult] = useState<null | "switched" | "kept">(null);
 
-  const displayItems = CART.map(item =>
+  if (loading) return <div className="p-8 text-gray-500">Loading cart...</div>;
+
+  // Use DB cart if it exists, otherwise use demo cart for the hackathon prototype
+  const cartItems = cart.length > 0 ? cart : DEMO_CART as any[];
+
+  const displayItems = cartItems.map(item =>
     result === "switched" && item.id === 1 ? { ...item, size: 8, price: item.price * 0.95 } : item
   );
-  const subtotal = displayItems.reduce((s, i) => s + i.price, 0);
+  
+  const subtotal = displayItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+
+  const handleSwitch = async () => {
+    setShowModal(false);
+    setResult("switched");
+    
+    // In a real app, update DB. Here we just simulate since we might be using demo data
+    if (cart.length > 0 && cart[0].id === 1) {
+      await updateCart([{ id: cart[0].id, size: "8", price: cart[0].price * 0.95 }]);
+    }
+  };
 
   return (
     <div className="p-8">
@@ -192,8 +214,8 @@ export function CheckoutIntercept() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-gray-900 text-xl font-bold">Checkout Intercept</h1>
-          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-2.5 py-0.5">
-            PRIYA · SESSION #8821
+          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-2.5 py-0.5 uppercase">
+            {(user?.email || "User").split('@')[0]} · SESSION #8821
           </span>
         </div>
         <p className="text-gray-400 text-sm">XGBoost return-risk model · triggered at cart review</p>
@@ -215,16 +237,16 @@ export function CheckoutIntercept() {
         <div className="lg:col-span-3 space-y-3">
           <div className="flex items-center justify-between mb-1">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Cart Items</p>
-            <span className="text-xs text-gray-400">{CART.length} items</span>
+            <span className="text-xs text-gray-400">{cartItems.length} items</span>
           </div>
 
           {displayItems.map(item => (
             <motion.div key={item.id} layout className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4">
               <div className="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
-                <img src={item.img} alt={item.name} className="w-full h-full object-cover" />
+                <img src={item.products?.image_url} alt={item.products?.name} className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
+                <p className="text-sm font-semibold text-gray-900 truncate">{item.products?.name}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Size {item.size}</span>
                   <span className="text-xs text-gray-400">{item.color}</span>
@@ -239,8 +261,8 @@ export function CheckoutIntercept() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-bold text-gray-900">₹{item.price.toLocaleString("en-IN")}</p>
-                <p className="text-xs text-gray-400 mt-0.5">Qty {item.qty}</p>
+                <p className="text-sm font-bold text-gray-900">₹{Number(item.price).toLocaleString("en-IN")}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Qty {item.quantity}</p>
               </div>
             </motion.div>
           ))}
@@ -269,8 +291,8 @@ export function CheckoutIntercept() {
             <div className="p-5 space-y-3.5">
               {displayItems.map(item => (
                 <div key={item.id} className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600 truncate max-w-[160px]">{item.name}</span>
-                  <span className="text-xs font-semibold text-gray-800">₹{item.price.toLocaleString("en-IN")}</span>
+                  <span className="text-xs text-gray-600 truncate max-w-[160px]">{item.products?.name}</span>
+                  <span className="text-xs font-semibold text-gray-800">₹{(item.price * item.quantity).toLocaleString("en-IN")}</span>
                 </div>
               ))}
 
@@ -278,7 +300,7 @@ export function CheckoutIntercept() {
                 {result === "switched" && (
                   <motion.div className="flex items-center justify-between" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <span className="text-xs text-green-700 font-medium">Green Discount (5%)</span>
-                    <span className="text-xs font-bold text-green-700">−₹{Math.round(CART[0].price * 0.05).toLocaleString("en-IN")}</span>
+                    <span className="text-xs font-bold text-green-700">−₹{Math.round(cartItems[0].price * 0.05).toLocaleString("en-IN")}</span>
                   </motion.div>
                 )}
                 <div className="flex items-center justify-between">
@@ -318,7 +340,7 @@ export function CheckoutIntercept() {
       <AnimatePresence>
         {showModal && (
           <InterceptModal
-            onSwitch={() => { setShowModal(false); setResult("switched"); }}
+            onSwitch={handleSwitch}
             onKeep={() => { setShowModal(false); setResult("kept"); }}
           />
         )}

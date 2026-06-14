@@ -7,6 +7,8 @@ import {
   Edit2
 } from "lucide-react";
 import { ArcGauge } from "./arc-gauge";
+import { useAuthContext } from "../../lib/AuthContext";
+import { submitGrading, insertEvent } from "../../lib/hooks";
 
 type Stage = "idle" | "uploading" | "analyzing" | "done" | "flagged";
 
@@ -190,6 +192,7 @@ function FlaggedPanel() {
 // ─── Grading results ──────────────────────────────────────────────────────────
 
 function GradingResults({ imageUrl }: { imageUrl: string }) {
+  const { user } = useAuthContext();
   const [accepted, setAccepted] = useState(false);
   const [payout, setPayout] = useState("3,240");
   const [editingPayout, setEditingPayout] = useState(false);
@@ -197,6 +200,30 @@ function GradingResults({ imageUrl }: { imageUrl: string }) {
   const [exchange, setExchange] = useState<ExchangeType>("amazon");
 
   const activeExchange = EXCHANGE_TYPES.find(e => e.id === exchange)!;
+
+  const handleAccept = async () => {
+    setAccepted(true);
+    if (!user) return;
+    
+    // Simulate grading ID
+    const returnId = Math.floor(Math.random() * 100) + 1;
+    
+    await submitGrading({
+      return_id: returnId,
+      grade: "B+",
+      defects: ["Minor scuff detected on Top housing"],
+      confidence: 87.2,
+      routing_decision: activeExchange.label,
+      payout_amount: Number(payout.replace(/,/g, ""))
+    });
+    
+    await insertEvent({
+      type: "grading",
+      title: "Item Graded: B+",
+      description: `Routed to ${activeExchange.label} for ₹${payout}`,
+      metadata: { grade: "B+", condition, routing: activeExchange.label }
+    });
+  };
 
   return (
     <motion.div className="space-y-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -400,7 +427,7 @@ function GradingResults({ imageUrl }: { imageUrl: string }) {
             {!accepted ? (
               <motion.button
                 key="accept"
-                onClick={() => setAccepted(true)}
+                onClick={handleAccept}
                 className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold cursor-pointer transition-colors ${activeExchange.color}`}
                 whileTap={{ scale: 0.98 }}
                 exit={{ opacity: 0 }}
@@ -454,12 +481,32 @@ export function SellerHub() {
   const [isFraud, setIsFraud] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const processFile = useCallback((file: File) => {
+  const processFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     setImageUrl(URL.createObjectURL(file));
     setStage("uploading");
+    
+    // Log event to DB
+    await insertEvent({
+      type: "upload",
+      title: "Image Uploaded for Grading",
+      description: "Seller uploaded image for automated grading.",
+      metadata: { file_name: file.name, fraud_sim: isFraud }
+    });
+
     setTimeout(() => setStage("analyzing"), 700);
-    setTimeout(() => setStage(isFraud ? "flagged" : "done"), 3400);
+    setTimeout(async () => {
+      const finalStage = isFraud ? "flagged" : "done";
+      setStage(finalStage);
+      if (isFraud) {
+        await insertEvent({
+          type: "fraud_alert",
+          title: "Fraud Detected in Image",
+          description: "System flagged metadata mismatch and description inconsistencies.",
+          metadata: { reasons: FRAUD_REASONS }
+        });
+      }
+    }, 3400);
   }, [isFraud]);
 
   const reset = () => {

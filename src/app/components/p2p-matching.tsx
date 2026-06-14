@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Package, MapPin, Clock, ChevronRight, Leaf, Zap,
@@ -7,17 +7,21 @@ import {
   Edit2, Send, CalendarClock
 } from "lucide-react";
 
+import { useAuthContext } from "../../lib/AuthContext";
+import { usePastOrders, createListing } from "../../lib/hooks";
+
 type RowState = "idle" | "listing" | "matching" | "matched";
 type ExchangeType = "meetup" | "ship";
 
 const CONDITIONS = ["Like New", "Good", "Fair", "Poor"] as const;
 
-const ORDERS = [
-  { id: "o1", name: "Sony WH-1000XM5",           category: "Audio",     price: 24990, date: "Jan 2024", monthsAgo: 13, sku: "SNY-XM5-BLK",  highlight: true },
-  { id: "o2", name: "Philips Avent Baby Monitor",  category: "Baby & Kids",price: 8499,  date: "Oct 2023", monthsAgo: 8,  sku: "PHL-AVENT-VM", highlight: true },
-  { id: "o3", name: "Levi's 511 Slim Jeans",       category: "Apparel",   price: 3499,  date: "Sep 2023", monthsAgo: 9,  sku: "LVI-511-32W",  highlight: true },
-  { id: "o4", name: "Instant Pot Duo 7-in-1",      category: "Kitchen",   price: 7999,  date: "Aug 2023", monthsAgo: 10, sku: "IP-DUO-6QT",   highlight: true },
-  { id: "o5", name: "Nike Air Max 270",             category: "Footwear",  price: 12999, date: "Jun 2023", monthsAgo: 12, sku: "NK-AM270-8UK", highlight: true },
+// Fallback demo data
+const DEMO_ORDERS = [
+  { id: 1, products: { name: "Sony WH-1000XM5", category: "Audio" }, price: 24990, created_at: "2024-01-15T00:00:00Z" },
+  { id: 2, products: { name: "Philips Avent Baby Monitor", category: "Baby & Kids" }, price: 8499, created_at: "2023-10-10T00:00:00Z" },
+  { id: 3, products: { name: "Levi's 511 Slim Jeans", category: "Apparel" }, price: 3499, created_at: "2023-09-05T00:00:00Z" },
+  { id: 4, products: { name: "Instant Pot Duo 7-in-1", category: "Kitchen" }, price: 7999, created_at: "2023-08-20T00:00:00Z" },
+  { id: 5, products: { name: "Nike Air Max 270", category: "Footwear" }, price: 12999, created_at: "2023-06-12T00:00:00Z" },
 ];
 
 const MATCHES = [
@@ -182,14 +186,29 @@ function MatchCard({ match, delay }: { match: typeof MATCHES[0]; delay: number }
 // ─── Listing summary ──────────────────────────────────────────────────────────
 
 function ListingSummary({ order, state, onMatch }: {
-  order: typeof ORDERS[0];
+  order: any;
   state: RowState;
   onMatch: () => void;
 }) {
+  const { user } = useAuthContext();
   const [askPrice, setAskPrice] = useState(String(Math.round(order.price * 0.55)));
   const [editingPrice, setEditingPrice] = useState(false);
   const [condition, setCondition] = useState<typeof CONDITIONS[number]>("Good");
   const [exchange, setExchange] = useState<ExchangeType>("meetup");
+
+  const handleCreateMatch = async () => {
+    if (user) {
+      await createListing({
+        user_id: user.id,
+        product_id: order.products?.id || 1,
+        condition,
+        ask_price: Number(askPrice),
+        location: "Bengaluru",
+        status: "active"
+      });
+    }
+    onMatch();
+  };
 
   return (
     <motion.div
@@ -212,7 +231,7 @@ function ListingSummary({ order, state, onMatch }: {
               {/* Item — read only */}
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Item</p>
-                <p className="text-xs font-semibold text-gray-800 mt-0.5">{order.name}</p>
+                <p className="text-xs font-semibold text-gray-800 mt-0.5">{order.products?.name}</p>
               </div>
 
               {/* Ask price — editable */}
@@ -292,7 +311,7 @@ function ListingSummary({ order, state, onMatch }: {
             )}
             {state === "matching" && (
               <motion.button
-                onClick={onMatch}
+                onClick={handleCreateMatch}
                 className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg px-3 py-2 text-xs font-bold cursor-pointer whitespace-nowrap transition-colors"
                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileTap={{ scale: 0.97 }}
               >
@@ -314,10 +333,13 @@ function ListingSummary({ order, state, onMatch }: {
 
 // ─── Order row ────────────────────────────────────────────────────────────────
 
-function OrderRow({ order }: { order: typeof ORDERS[0] }) {
+function OrderRow({ order }: { order: any }) {
   const [rowState, setRowState] = useState<RowState>("idle");
   const [showMatches, setShowMatches] = useState(false);
   const isExpanded = rowState !== "idle";
+
+  const orderDate = new Date(order.created_at);
+  const monthsAgo = Math.max(1, Math.floor((new Date().getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24 * 30)));
 
   return (
     <motion.div layout className={`border-b border-gray-100 last:border-0 transition-colors ${isExpanded ? "bg-green-50/40" : "hover:bg-gray-50/60"}`}>
@@ -327,19 +349,19 @@ function OrderRow({ order }: { order: typeof ORDERS[0] }) {
             <Package className="w-3.5 h-3.5 text-gray-400" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-800 truncate">{order.name}</p>
-            <p className="text-[10px] text-gray-400 mt-px">{order.sku}</p>
+            <p className="text-sm font-semibold text-gray-800 truncate">{order.products?.name}</p>
+            <p className="text-[10px] text-gray-400 mt-px">SKU-{order.id.toString().padStart(6, '0')}</p>
           </div>
         </div>
         <div className="col-span-2">
-          <span className="text-xs font-medium text-gray-400 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">{order.category}</span>
+          <span className="text-xs font-medium text-gray-400 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">{order.products?.category}</span>
         </div>
         <div className="col-span-2">
           <p className="text-sm font-bold text-gray-800">₹{order.price.toLocaleString("en-IN")}</p>
         </div>
         <div className="col-span-2 flex items-center gap-1.5">
           <Clock className="w-3 h-3 text-gray-300" />
-          <span className="text-xs text-gray-400">{order.date} · {order.monthsAgo}mo</span>
+          <span className="text-xs text-gray-400">{orderDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })} · {monthsAgo}mo</span>
         </div>
         <div className="col-span-2 flex justify-end">
           <AnimatePresence mode="wait">
@@ -434,6 +456,13 @@ function OrderRow({ order }: { order: typeof ORDERS[0] }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function P2PMatching() {
+  const { user } = useAuthContext();
+  const { orders, loading } = usePastOrders(user?.id || "");
+
+  if (loading) return <div className="p-8 text-gray-500">Loading orders...</div>;
+
+  const displayOrders = orders.length > 0 ? orders : DEMO_ORDERS;
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -450,7 +479,7 @@ export function P2PMatching() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Total Orders",  value: "23",      icon: ShoppingBag, color: "text-gray-400" },
+          { label: "Total Orders",  value: displayOrders.length.toString(), icon: ShoppingBag, color: "text-gray-400" },
           { label: "Items Listed",  value: "4",       icon: Package,     color: "text-blue-500" },
           { label: "P2P Matches",   value: "11",      icon: Users,       color: "text-green-600" },
           { label: "CO₂ Saved",     value: "34.2 kg", icon: Leaf,        color: "text-green-600" },
@@ -486,10 +515,10 @@ export function P2PMatching() {
           <div className="col-span-2 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</div>
         </div>
 
-        <div>{ORDERS.map(o => <OrderRow key={o.id} order={o} />)}</div>
+        <div>{displayOrders.map((o: any) => <OrderRow key={o.id} order={o} />)}</div>
 
         <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-          <span className="text-xs text-gray-400">Showing 5 of 23 orders</span>
+          <span className="text-xs text-gray-400">Showing {Math.min(5, displayOrders.length)} of {displayOrders.length} orders</span>
           <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 cursor-pointer transition-colors">
             Load more <ChevronRight className="w-3.5 h-3.5" />
           </button>

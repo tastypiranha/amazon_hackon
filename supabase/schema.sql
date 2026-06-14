@@ -191,6 +191,7 @@ create table donations (
   donor_id uuid references auth.users(id),
   title text not null,
   description text,
+  category text,
   image_url text,
   location text not null,
   status text default 'available', -- 'available', 'claimed'

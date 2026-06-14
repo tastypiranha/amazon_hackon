@@ -12,6 +12,7 @@ export function DonationHub() {
   
   // Form State
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("clothing");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,6 +27,7 @@ export function DonationHub() {
     const newDonation = {
       donor_id: user.id,
       title,
+      category,
       description,
       location,
       status: 'available',
@@ -54,6 +56,7 @@ export function DonationHub() {
       
       setView("list");
       setTitle("");
+      setCategory("clothing");
       setDescription("");
       setLocation("");
     }
@@ -144,6 +147,22 @@ export function DonationHub() {
             </div>
             
             <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">Category</label>
+              <select 
+                value={category}
+                onChange={e => setCategory(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-rose-400 focus:bg-white transition-colors cursor-pointer"
+              >
+                <option value="clothing">Clothing</option>
+                <option value="electrical_appliances">Electrical Appliances</option>
+                <option value="household_utensils">Household Utensils</option>
+                <option value="furniture">Furniture</option>
+                <option value="vehicle">Vehicle / Mobility</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            
+            <div>
               <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">Location (Neighborhood/City)</label>
               <input 
                 required
@@ -202,6 +221,9 @@ export function DonationHub() {
                   </div>
                   <div className="p-5">
                     <h3 className="text-lg font-bold text-gray-900 mb-1">{d.title}</h3>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1 font-medium">
+                      <span className="uppercase tracking-wider text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded-md">{d.category || 'Item'}</span>
+                    </div>
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3 font-medium">
                       <MapPin className="w-3.5 h-3.5 text-gray-400" /> {d.location}
                     </div>

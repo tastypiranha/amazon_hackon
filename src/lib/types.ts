@@ -137,6 +137,7 @@ export interface Donation {
   id?: number;
   donor_id: string;
   title: string;
+  category?: string;
   description?: string;
   image_url?: string;
   location: string;

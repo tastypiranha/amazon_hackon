@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Star, ShoppingBag, Heart, Leaf, Shield, Zap,
@@ -7,6 +7,8 @@ import {
   ChevronDown, ChevronRight
 } from "lucide-react";
 import { ArcGauge } from "./arc-gauge";
+import { useProduct, useUserProfile, awardGreenCredits } from "../../lib/hooks";
+import { useAuthContext } from "../../lib/AuthContext";
 
 const CHECKLIST = [
   { label: "Cosmetic",     ok: true },
@@ -66,7 +68,7 @@ function FloatingCredits({ pts, onDone }: { pts: number; onDone: () => void }) {
 
 // ─── Health card ──────────────────────────────────────────────────────────────
 
-function HealthCard() {
+function HealthCard({ grade, co2 }: { grade: string; co2: number }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -86,7 +88,7 @@ function HealthCard() {
           <p className="text-gray-400 text-xs mt-0.5">AI-graded · tap to expand</p>
         </div>
         <div className="flex items-center gap-3">
-          <p className="text-3xl font-black text-gray-900 leading-none">A-</p>
+          <p className="text-3xl font-black text-gray-900 leading-none">{grade}</p>
           <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.22 }}>
             <ChevronDown className="w-4 h-4 text-gray-400" />
           </motion.div>
@@ -129,7 +131,7 @@ function HealthCard() {
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { icon: Shield,  label: "Warranty", value: "8 months" },
-                  { icon: Package, label: "Condition", value: "Grade A-" },
+                  { icon: Package, label: "Condition", value: `Grade ${grade}` },
                   { icon: Truck,   label: "Dispatch",  value: "Same day" },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
@@ -143,7 +145,7 @@ function HealthCard() {
               {/* CO₂ */}
               <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                 <Leaf className="w-4 h-4 text-green-600 flex-shrink-0" />
-                <p className="text-sm text-green-800">🌱 Buy this and save <strong>4.2 kg CO₂</strong> vs. buying new</p>
+                <p className="text-sm text-green-800">🌱 Buy this and save <strong>{co2} kg CO₂</strong> vs. buying new</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -161,7 +163,7 @@ function HealthCard() {
 // ─── Green Wallet ─────────────────────────────────────────────────────────────
 
 function GreenWallet({ pts, co2 }: { pts: number; co2: number }) {
-  const currentTier = TIERS.filter(t => co2 >= t.kg).pop()!;
+  const currentTier = TIERS.filter(t => co2 >= t.kg).pop() || TIERS[0];
   const nextTier = TIERS.find(t => t.kg > co2);
   const pct = nextTier
     ? ((co2 - currentTier.kg) / (nextTier.kg - currentTier.kg)) * 100
@@ -261,33 +263,55 @@ function GreenWallet({ pts, co2 }: { pts: number; co2: number }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function BuyerView() {
+export function BuyerView({ productId = 1 }: { productId?: number }) {
+  const { user } = useAuthContext();
+  const { product, loading } = useProduct(productId);
+  const profile = useUserProfile(user?.id || "");
+  
   const [liked, setLiked] = useState(false);
   const [buyState, setBuyState] = useState<"idle" | "carted" | "bought">("idle");
   const [floatPts, setFloatPts] = useState<number | null>(null);
   const [showCO2, setShowCO2] = useState(false);
-  const [pts, setPts] = useState(340);
-  const [co2, setCo2] = useState(22.1);
+  
+  // Local state for optimistic updates
+  const [localPts, setLocalPts] = useState(0);
+  const [localCo2, setLocalCo2] = useState(0);
   const [activeImg, setActiveImg] = useState(0);
 
+  useEffect(() => {
+    if (profile) {
+      setLocalPts(profile.green_credits || 0);
+      setLocalCo2(profile.co2_saved_kg ? Number(profile.co2_saved_kg) : 0);
+    }
+  }, [profile]);
+
+  if (loading || !product) {
+    return <div className="p-8 text-gray-500">Loading product...</div>;
+  }
+
   const images = [
-    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&q=80",
+    product.image_url,
     "https://images.unsplash.com/photo-1524678714210-9917a6c619c2?w=200&q=80",
     "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=200&q=80",
   ];
 
-  const award = (p: number) => {
+  const award = async (p: number) => {
+    const co2Saved = Number(product.co2_saved || 4.2);
     setFloatPts(p);
     setShowCO2(true);
-    setPts(prev => prev + p);
-    setCo2(prev => parseFloat((prev + 4.2).toFixed(1)));
+    setLocalPts(prev => prev + p);
+    setLocalCo2(prev => parseFloat((prev + co2Saved).toFixed(1)));
+    
+    if (user) {
+      await awardGreenCredits(user.id, p, co2Saved, buyState === "idle" ? "bought" : "carted");
+    }
   };
 
   return (
     <div className="p-8">
       {/* Floating elements */}
       <AnimatePresence>
-        {showCO2 && <CO2Flash co2={4.2} onDone={() => setShowCO2(false)} />}
+        {showCO2 && <CO2Flash co2={Number(product.co2_saved || 4.2)} onDone={() => setShowCO2(false)} />}
       </AnimatePresence>
       <AnimatePresence>
         {floatPts !== null && (
@@ -298,7 +322,7 @@ export function BuyerView() {
       {/* Page header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-          <span>Marketplace</span><ChevronRight className="w-3 h-3" /><span>Electronics</span><ChevronRight className="w-3 h-3" /><span>Audio</span>
+          <span>Marketplace</span><ChevronRight className="w-3 h-3" /><span>{product.category}</span><ChevronRight className="w-3 h-3" /><span>{product.brand}</span>
         </div>
         <div className="flex items-start justify-between">
           <div>
@@ -307,7 +331,7 @@ export function BuyerView() {
           </div>
           <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1.5">
             <Wallet className="w-3.5 h-3.5 text-green-600" />
-            <span className="text-xs font-bold text-green-700">{pts} pts</span>
+            <span className="text-xs font-bold text-green-700">{localPts} pts</span>
           </div>
         </div>
       </div>
@@ -321,7 +345,7 @@ export function BuyerView() {
             </AnimatePresence>
             <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 border border-green-200 rounded-full px-2.5 py-1 shadow-sm">
               <Shield className="w-3 h-3 text-green-600" />
-              <span className="text-[11px] font-bold text-green-700">Grade A-</span>
+              <span className="text-[11px] font-bold text-green-700">Grade {product.grade}</span>
             </div>
             <div className="absolute top-3 right-3 bg-green-600 text-white rounded-full px-2.5 py-1 shadow-sm flex items-center gap-1">
               <Leaf className="w-3 h-3" />
@@ -340,41 +364,41 @@ export function BuyerView() {
             ))}
           </div>
 
-          <HealthCard />
+          <HealthCard grade={product.grade} co2={Number(product.co2_saved || 4.2)} />
         </div>
 
         {/* Product info */}
         <div className="lg:col-span-5 space-y-5">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[11px] font-bold text-gray-400 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">Sony</span>
+              <span className="text-[11px] font-bold text-gray-400 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">{product.brand}</span>
               <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">Refurbished</span>
             </div>
-            <h2 className="text-gray-900 text-2xl leading-snug">Sony WH-1000XM5 Wireless Headphones</h2>
-            <p className="text-gray-400 text-sm mt-1.5">Industry-leading noise cancellation · 30hr battery · Multipoint</p>
+            <h2 className="text-gray-900 text-2xl leading-snug">{product.name}</h2>
+            <p className="text-gray-400 text-sm mt-1.5">Industry-leading functionality · Multi-point connection</p>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-0.5">
-              {[...Array(5)].map((_, i) => <Star key={i} className={`w-4 h-4 ${i < 4 ? "text-[#FF9900] fill-[#FF9900]" : "text-gray-200"}`} />)}
+              {[...Array(5)].map((_, i) => <Star key={i} className={`w-4 h-4 ${i < Math.floor(Number(product.rating) || 0) ? "text-[#FF9900] fill-[#FF9900]" : "text-gray-200"}`} />)}
             </div>
-            <span className="text-sm font-bold text-blue-600">4.6</span>
-            <span className="text-gray-400 text-xs">(2,841 reviews)</span>
+            <span className="text-sm font-bold text-blue-600">{product.rating}</span>
+            <span className="text-gray-400 text-xs">({Number(product.reviews).toLocaleString()} reviews)</span>
           </div>
 
           <div className="border-t border-gray-100 pt-4">
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-black text-gray-900">₹18,500</span>
-              <span className="text-gray-300 line-through text-lg">₹24,990</span>
-              <span className="text-sm font-black text-red-600">26% off</span>
+              <span className="text-3xl font-black text-gray-900">₹{Number(product.price).toLocaleString("en-IN")}</span>
+              <span className="text-gray-300 line-through text-lg">₹{Number(product.original_price).toLocaleString("en-IN")}</span>
+              <span className="text-sm font-black text-red-600">{product.discount}% off</span>
             </div>
             <p className="text-xs text-gray-400 mt-1">Incl. taxes · Free delivery · 7-day returns</p>
           </div>
 
           <div className="space-y-2 border-t border-gray-100 pt-4">
             {[
-              { icon: Leaf,   text: "Saves 4.2 kg CO₂ vs. buying new",       bg: "bg-green-50",  border: "border-green-100",  color: "text-green-600" },
-              { icon: Shield, text: "AI-verified · Grade A- · 8 mo warranty", bg: "bg-blue-50",   border: "border-blue-100",   color: "text-blue-600" },
+              { icon: Leaf,   text: `Saves ${product.co2_saved} kg CO₂ vs. buying new`,       bg: "bg-green-50",  border: "border-green-100",  color: "text-green-600" },
+              { icon: Shield, text: `AI-verified · Grade ${product.grade} · 8 mo warranty`, bg: "bg-blue-50",   border: "border-blue-100",   color: "text-blue-600" },
               { icon: Zap,    text: "Earn +50 pts (Buy) or +20 pts (Cart)",   bg: "bg-orange-50", border: "border-orange-100", color: "text-orange-600" },
             ].map(({ icon: Icon, text, bg, border, color }) => (
               <div key={text} className={`flex items-center gap-2.5 ${bg} border ${border} rounded-xl px-3.5 py-2.5`}>
@@ -388,7 +412,7 @@ export function BuyerView() {
             {[
               { icon: Truck,     label: "Free Delivery", sub: "By tomorrow" },
               { icon: RotateCcw, label: "7-Day Return",  sub: "No questions" },
-              { icon: Shield,    label: "AI Verified",   sub: "Grade A-" },
+              { icon: Shield,    label: "AI Verified",   sub: `Grade ${product.grade}` },
             ].map(({ icon: Icon, label, sub }) => (
               <div key={label} className="text-center bg-gray-50 border border-gray-100 rounded-xl p-3">
                 <Icon className="w-4 h-4 text-gray-300 mx-auto mb-1" />
@@ -406,7 +430,7 @@ export function BuyerView() {
             <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-4">
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Price</p>
-                <p className="text-2xl font-black text-gray-900">₹18,500</p>
+                <p className="text-2xl font-black text-gray-900">₹{Number(product.price).toLocaleString("en-IN")}</p>
                 <p className="text-xs text-green-600 font-bold mt-0.5">✓ In stock · Ships today</p>
               </div>
 
@@ -419,7 +443,7 @@ export function BuyerView() {
                       whileTap={{ scale: 0.98 }}
                     >
                       <ShoppingBag className="w-4 h-4" />
-                      Buy Now · ₹18,500
+                      Buy Now · ₹{Number(product.price).toLocaleString("en-IN")}
                     </motion.button>
                     <motion.button
                       onClick={() => { setBuyState("carted"); award(20); }}
@@ -464,7 +488,7 @@ export function BuyerView() {
               </AnimatePresence>
             </div>
 
-            <GreenWallet pts={pts} co2={co2} />
+            <GreenWallet pts={localPts} co2={localCo2} />
 
             {/* Related */}
             <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">

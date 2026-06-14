@@ -9,6 +9,8 @@ const STATS = [
   { icon: Shield,     value: "142t",  label: "CO₂ offset" },
 ];
 
+import { useAuthContext } from "../../lib/AuthContext";
+
 interface LoginProps {
   onLogin: () => void;
 }
@@ -19,14 +21,31 @@ export function Login({ onLogin }: LoginProps) {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
+  const { signIn, signUp } = useAuthContext();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) { setError("Please fill in all fields."); return; }
     setError("");
     setLoading(true);
-    setTimeout(() => { setLoading(false); onLogin(); }, 1400);
+    
+    // First try to sign in
+    let { error: authError } = await signIn(email, password);
+    
+    // Auto-signup for demo purposes if user doesn't exist
+    if (authError && authError.message.includes("Invalid login credentials")) {
+      const { error: signUpError } = await signUp(email, password);
+      authError = signUpError;
+    }
+    
+    setLoading(false);
+    if (authError) {
+      setError(authError.message);
+    } else {
+      onLogin();
+    }
   };
+
 
   return (
     <div className="h-full flex">

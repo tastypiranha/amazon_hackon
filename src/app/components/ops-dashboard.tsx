@@ -12,8 +12,10 @@ import {
   Zap,
   BarChart2,
   Activity,
-  ArrowRight
+  ArrowRight,
+  ShieldAlert
 } from "lucide-react";
+import { useEvents } from "../../lib/hooks";
 
 // ─── Simple CountUp ──────────────────────────────────────────────────────────
 function CountUp({ end, prefix = "", suffix = "" }: { end: number, prefix?: string, suffix?: string }) {
@@ -37,30 +39,38 @@ function CountUp({ end, prefix = "", suffix = "" }: { end: number, prefix?: stri
   return <span>{prefix}{count.toLocaleString("en-IN")}{suffix}</span>;
 }
 
-// ─── Mock Event Data ──────────────────────────────────────────────────────────
-const MOCK_EVENTS = [
-  { id: 1, text: "Priya's return prevented — Nike Shoes Size 7→8", icon: Shield, color: "text-blue-600", bg: "bg-blue-100", border: "border-blue-200" },
-  { id: 2, text: "Baby Monitor graded A — Amazon Buyback ₹2,070", icon: Crown, color: "text-amber-600", bg: "bg-amber-100", border: "border-amber-200" },
-  { id: 3, text: "P2P Match: Neha ↔ Rahul — 2.3km", icon: MapPin, color: "text-emerald-600", bg: "bg-emerald-100", border: "border-emerald-200" },
-  { id: 4, text: "+50 Green Credits issued to Rahul", icon: Leaf, color: "text-green-600", bg: "bg-green-100", border: "border-green-200" },
-  { id: 5, text: "Kindle Oasis graded B+ — Relisted for ₹12,400", icon: RefreshCw, color: "text-violet-600", bg: "bg-violet-100", border: "border-violet-200" },
-];
+const getEventStyle = (type: string) => {
+  switch (type) {
+    case 'return_initiated':
+      return { icon: RefreshCw, color: "text-blue-600", bg: "bg-blue-100", border: "border-blue-200" };
+    case 'fraud_alert':
+      return { icon: ShieldAlert, color: "text-red-600", bg: "bg-red-100", border: "border-red-200" };
+    case 'grading':
+      return { icon: Crown, color: "text-amber-600", bg: "bg-amber-100", border: "border-amber-200" };
+    case 'checkout_intercept':
+    case 'p2p_match':
+      return { icon: Recycle, color: "text-emerald-600", bg: "bg-emerald-100", border: "border-emerald-200" };
+    default:
+      return { icon: Zap, color: "text-violet-600", bg: "bg-violet-100", border: "border-violet-200" };
+  }
+};
 
 export function OpsDashboard() {
-  const [events, setEvents] = useState(MOCK_EVENTS.slice(0, 3));
-  const [eventIndex, setEventIndex] = useState(3);
-
-  // Live feed simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setEvents(prev => {
-        const nextEvent = { ...MOCK_EVENTS[eventIndex % MOCK_EVENTS.length], id: Date.now() };
-        setEventIndex(i => i + 1);
-        return [nextEvent, ...prev].slice(0, 6);
-      });
-    }, 3500);
-    return () => clearInterval(interval);
-  }, [eventIndex]);
+  const rawEvents = useEvents();
+  
+  // Format the events
+  const events = rawEvents.map((evt, index) => {
+    const style = getEventStyle(evt.type);
+    return {
+      id: evt.id || `temp-${index}`,
+      text: evt.title + (evt.description ? ` - ${evt.description}` : ''),
+      icon: style.icon,
+      color: style.color,
+      bg: style.bg,
+      border: style.border,
+      created_at: evt.created_at
+    };
+  });
 
   return (
     <div className="p-8 pb-20">
@@ -190,27 +200,33 @@ export function OpsDashboard() {
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white pointer-events-none z-10" />
             <div className="space-y-3">
               <AnimatePresence mode="popLayout" initial={false}>
-                {events.map((event, i) => (
-                  <motion.div
-                    layout
-                    key={event.id}
-                    initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                    animate={{ opacity: 1 - i * 0.15, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    className={`flex items-start gap-3 p-3 rounded-xl border ${i === 0 ? event.border : "border-gray-100 bg-white"} shadow-sm transition-all`}
-                  >
-                    <div className={`w-8 h-8 rounded-full ${event.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                      <event.icon className={`w-4 h-4 ${event.color}`} />
-                    </div>
-                    <div>
-                      <p className={`text-sm font-semibold ${i === 0 ? "text-gray-900" : "text-gray-600"}`}>
-                        {event.text}
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-1">Just now · Processing time: {(100 + Math.random() * 80).toFixed(0)}ms</p>
-                    </div>
-                  </motion.div>
-                ))}
+                {events.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center mt-4">Waiting for events...</p>
+                ) : (
+                  events.map((event, i) => (
+                    <motion.div
+                      layout
+                      key={event.id}
+                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                      animate={{ opacity: 1 - i * 0.15, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      className={`flex items-start gap-3 p-3 rounded-xl border ${i === 0 ? event.border : "border-gray-100 bg-white"} shadow-sm transition-all`}
+                    >
+                      <div className={`w-8 h-8 rounded-full ${event.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                        <event.icon className={`w-4 h-4 ${event.color}`} />
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold ${i === 0 ? "text-gray-900" : "text-gray-600"}`}>
+                          {event.text}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {new Date(event.created_at || Date.now()).toLocaleTimeString()} · Processing time: {(100 + Math.random() * 80).toFixed(0)}ms
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
               </AnimatePresence>
             </div>
           </div>

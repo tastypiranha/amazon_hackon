@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Leaf, CheckCircle2, CreditCard, Lock, ShoppingBag, Users, ArrowLeftRight, Heart } from "lucide-react";
+import { Leaf, CheckCircle2, CreditCard, Lock, ShoppingBag, Users, ArrowLeftRight, Heart, Shield, AlertTriangle, TrendingDown } from "lucide-react";
 import { useAuthContext } from "../../lib/AuthContext";
 import { getListedProducts, removeListedProduct, addPurchase } from "../../lib/product-store";
 import { addNotification, getNotifications } from "../../lib/notification-store";
+import { predictReturn } from "../../lib/api";
 
 const PROCESSING_FEES: Record<string, number> = {
   delhi: 15, chennai: 18, mumbai: 12, lucknow: 38, kolkata: 28, prayagraj: 45
@@ -22,10 +23,25 @@ export function CheckoutIntercept({ selectedProductId, userLocation, onNav }: { 
   const [result, setResult] = useState<"success" | null>(null);
   const [useGreenCredits, setUseGreenCredits] = useState(false);
   const [cartEmpty, setCartEmpty] = useState(false);
+  const [returnPrediction, setReturnPrediction] = useState<any>(null);
 
   // Find the selected product
   const allProducts = getListedProducts();
   const product = selectedProductId ? allProducts.find(p => p.id === selectedProductId) : null;
+
+  // Fetch return prediction when product is available
+  useEffect(() => {
+    if (!product) return;
+    const buyerLoc = (userLocation || "delhi").toLowerCase();
+    const ownership = product.listingType === "amazon" ? "amazon" : "seller";
+    predictReturn(
+      product.category.toLowerCase(),
+      product.condition.toLowerCase(),
+      product.price,
+      buyerLoc,
+      ownership
+    ).then(data => setReturnPrediction(data)).catch(() => setReturnPrediction(null));
+  }, [product?.id, userLocation]);
 
   // If no product selected or cart emptied after purchase, show empty cart
   if (!product || cartEmpty) {
@@ -240,6 +256,67 @@ export function CheckoutIntercept({ selectedProductId, userLocation, onNav }: { 
               <p className="text-xs text-gray-400 mt-0.5">Qty 1</p>
             </div>
           </div>
+
+          {/* Return Prediction Card */}
+          {returnPrediction && returnPrediction.risk_level !== "NONE" && (
+            <motion.div
+              className={`rounded-xl border p-4 ${
+                returnPrediction.risk_level === "LOW" ? "bg-green-50 border-green-200" :
+                returnPrediction.risk_level === "MODERATE" ? "bg-amber-50 border-amber-200" :
+                "bg-red-50 border-red-200"
+              }`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                  returnPrediction.risk_level === "LOW" ? "bg-green-100" :
+                  returnPrediction.risk_level === "MODERATE" ? "bg-amber-100" :
+                  "bg-red-100"
+                }`}>
+                  {returnPrediction.risk_level === "LOW" ? (
+                    <Shield className={`w-4.5 h-4.5 text-green-600`} />
+                  ) : returnPrediction.risk_level === "MODERATE" ? (
+                    <AlertTriangle className={`w-4.5 h-4.5 text-amber-600`} />
+                  ) : (
+                    <TrendingDown className={`w-4.5 h-4.5 text-red-600`} />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className={`text-xs font-bold uppercase tracking-wide ${
+                    returnPrediction.risk_level === "LOW" ? "text-green-700" :
+                    returnPrediction.risk_level === "MODERATE" ? "text-amber-700" :
+                    "text-red-700"
+                  }`}>
+                    Return Risk: {returnPrediction.risk_level}
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">AI-predicted return probability</p>
+                </div>
+                <div className={`text-xl font-black ${
+                  returnPrediction.risk_level === "LOW" ? "text-green-600" :
+                  returnPrediction.risk_level === "MODERATE" ? "text-amber-600" :
+                  "text-red-600"
+                }`}>
+                  {returnPrediction.return_probability}%
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white/70 rounded-lg px-2.5 py-2 text-center">
+                  <p className="text-[10px] text-gray-400 font-medium">Price</p>
+                  <p className="text-xs font-bold text-gray-700 capitalize">{returnPrediction.price_assessment || "fair"}</p>
+                </div>
+                <div className="bg-white/70 rounded-lg px-2.5 py-2 text-center">
+                  <p className="text-[10px] text-gray-400 font-medium">Category</p>
+                  <p className="text-xs font-bold text-gray-700 capitalize">{(returnPrediction.category || "").replace(/_/g, " ")}</p>
+                </div>
+                <div className="bg-white/70 rounded-lg px-2.5 py-2 text-center">
+                  <p className="text-[10px] text-gray-400 font-medium">Ownership</p>
+                  <p className="text-xs font-bold text-gray-700 capitalize">{returnPrediction.ownership || "amazon"}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Summary */}

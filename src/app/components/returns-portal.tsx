@@ -12,34 +12,6 @@ const TYPE_BADGE: Record<string, { label: string; color: string }> = {
   donate: { label: "Donation", color: "bg-rose-100 text-rose-700 border-rose-200" },
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-function ReturnRiskMeter({ purchase }: { purchase: PurchaseRecord }) {
-  const [prediction, setPrediction] = useState<any>(null);
-
-  useEffect(() => {
-    async function fetchPrediction() {
-      try {
-        const ownershipMap: Record<string, string> = { amazon: "amazon", p2p: "seller", exchange: "exchange", donate: "donate" };
-        const res = await fetch(`${API_URL}/api/return-predict?category=${encodeURIComponent(purchase.category)}&condition=${encodeURIComponent(purchase.condition)}&price=${purchase.price}&location=delhi&ownership=${ownershipMap[purchase.purchaseType] || "amazon"}`);
-        const data = await res.json();
-        setPrediction(data);
-      } catch { /* silently fail */ }
-    }
-    fetchPrediction();
-  }, [purchase]);
-
-  if (!prediction) return null;
-
-  const prob = prediction.return_probability || 0;
-
-  return (
-    <div className="mt-2">
-      <span className="text-xs text-gray-500">Return Prediction: <span className="font-bold text-gray-900">{prob}%</span></span>
-    </div>
-  );
-}
-
 export function ReturnsPortal() {
   const { user } = useAuthContext();
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
@@ -61,6 +33,15 @@ export function ReturnsPortal() {
   const confirmReturn = () => {
     if (returnConfirm) {
       setReturnedItems(prev => new Set([...prev, returnConfirm.id]));
+
+      // Deduct green credits earned from this purchase (10% of price paid)
+      const creditsKey = `amazon_relife_credits_${user?.email || 'guest'}`;
+      const current = JSON.parse(localStorage.getItem(creditsKey) || '{"total_points": 100, "transactions": []}');
+      const earnedFromPurchase = Math.round(returnConfirm.price * 0.10);
+      current.total_points = Math.max(0, current.total_points - earnedFromPurchase);
+      current.transactions = current.transactions || [];
+      current.transactions.push({ points: -earnedFromPurchase, type: "return_deduction", date: new Date().toISOString() });
+      localStorage.setItem(creditsKey, JSON.stringify(current));
       
       // Notify seller (only for p2p, exchange, donate — not amazon)
       if (returnConfirm.purchaseType !== "amazon" && returnConfirm.sellerUserId) {
@@ -140,8 +121,6 @@ export function ReturnsPortal() {
                       )}
                     </div>
                   </div>
-                  {/* Return Prediction Meter */}
-                  {!isReturned && returnEligible && <ReturnRiskMeter purchase={purchase} />}
                   {isReturned && (
                     <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />

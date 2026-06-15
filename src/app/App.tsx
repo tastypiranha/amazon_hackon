@@ -12,7 +12,6 @@ import { CheckoutIntercept } from "./components/checkout-intercept";
 import { SellerHub } from "./components/seller-hub";
 import { BuyerView } from "./components/buyer-view";
 import { P2PMatching } from "./components/p2p-matching";
-import { OpsDashboard } from "./components/ops-dashboard";
 import { ReturnsPortal } from "./components/returns-portal";
 import { Login } from "./components/login";
 import { DonationHub } from "./components/donation-hub";
@@ -34,7 +33,6 @@ const NAV = [
   { id: "returns",  label: "History & Returns",  icon: RotateCcw },
   { id: "donations",label: "Donation Hub",       icon: Heart },
   { id: "exchange", label: "Exchange",           icon: ArrowLeftRight },
-  { id: "ops",      label: "Ops Dashboard",      icon: BarChart2 },
 ];
 
 const CATEGORIES = ["All", "Audio", "Footwear", "Wearables", "Laptops", "Cameras", "Phones"];
@@ -225,7 +223,34 @@ function Overview({ onNav, userLocation }: { onNav: (id: string, productId?: num
   const fairestDeals = allProducts.filter(p => p.tag === "fair");
 
   if (loading) {
-    return <div className="p-8 text-gray-500">Loading products...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <ShoppingBag className="w-10 h-10 text-gray-200 mb-4" />
+        <p className="text-sm text-gray-400">Loading products...</p>
+      </div>
+    );
+  }
+
+  if (!loading && allProducts.length === 0 && listedProducts.length === 0) {
+    return (
+      <div className="min-h-full">
+        <div className="bg-white border-b border-gray-100 px-8 py-6">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-gray-900 text-xl font-bold">Good morning, {user?.email || "User"} 👋</p>
+            </div>
+            <p className="text-gray-400 text-sm">Here are today's best refurbished finds, curated just for you.</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-center justify-center py-24 text-center px-8">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-5">
+            <ShoppingBag className="w-8 h-8 text-gray-300" />
+          </div>
+          <p className="text-lg font-bold text-gray-700 mb-2">No products available yet</p>
+          <p className="text-sm text-gray-400 max-w-sm">Products will appear here once sellers list items through the Seller Hub or items are routed through the system.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -572,15 +597,32 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string, 
 
       <div className="px-4 py-4 border-t border-white/8 relative">
         <div 
-          className="flex items-center gap-2.5 cursor-pointer hover:bg-white/6 rounded-lg p-1.5 -m-1.5 transition-colors"
+          className="flex items-center gap-3 cursor-pointer hover:bg-white/6 rounded-xl p-2 -m-2 transition-colors"
           onClick={() => { setShowMenu(v => !v); setShowNotifs(false); }}
         >
-          <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-            <span className="text-[11px] font-bold text-gray-300">{(user?.email || "R")[0].toUpperCase()}</span>
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20">
+            <span className="text-xs font-black text-white">{(user?.email || "R")[0].toUpperCase()}</span>
           </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-300 truncate">{user?.email || "User"}</p>
-            <p className="text-[10px] text-gray-600 truncate">{(() => { const c = JSON.parse(localStorage.getItem(`amazon_relife_credits_${user?.email || 'guest'}`) || '{"total_points": 100}'); return `${c.total_points} pts · Eco Level ${Math.floor(c.total_points / 500) + 1}`; })()}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-gray-200 truncate">{user?.email || "User"}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {(() => { 
+                const c = JSON.parse(localStorage.getItem(`amazon_relife_credits_${user?.email || 'guest'}`) || '{"total_points": 100}'); 
+                const level = Math.floor(c.total_points / 500) + 1;
+                return (
+                  <>
+                    <span className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full px-2 py-0.5">
+                      <Leaf className="w-2.5 h-2.5 text-emerald-400" />
+                      <span className="text-[9px] font-bold text-emerald-300">{c.total_points}</span>
+                    </span>
+                    <span className="flex items-center gap-1 bg-amber-500/15 border border-amber-500/25 rounded-full px-2 py-0.5">
+                      <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
+                      <span className="text-[9px] font-bold text-amber-300">Lvl {level}</span>
+                    </span>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </div>
         {showMenu && (
@@ -718,7 +760,6 @@ export default function App() {
       case "p2p":      return <P2PMatching onNav={handleNav} userLocation={userLocation} />;
       case "donations":return <DonationHub onNav={handleNav} />;
       case "exchange": return <Exchange userLocation={userLocation} onNav={handleNav} />;
-      case "ops":      return <OpsDashboard />;
       default:         return null;
     }
   };

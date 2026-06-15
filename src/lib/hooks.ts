@@ -5,20 +5,34 @@ import { Product, Listing, Order, CartItem, Event, UserProfile, Match, Donation,
 // Products
 export function useProducts(category?: string) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
-      let query = supabase.from('products').select('*');
-      if (category && category !== 'All') {
-        query = query.eq('category', category);
+      try {
+        let query = supabase.from('products').select('*');
+        if (category && category !== 'All') {
+          query = query.eq('category', category);
+        }
+        // Race against a 3-second timeout so the page never hangs
+        const result = await Promise.race([
+          query,
+          new Promise<{ data: null; error: { message: string } }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 3000)
+          ),
+        ]);
+        if (!cancelled) {
+          if (!result.error && result.data) setProducts(result.data as Product[]);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
       }
-      const { data, error } = await query;
-      if (!error && data) setProducts(data as Product[]);
-      setLoading(false);
     }
     load();
+    return () => { cancelled = true; };
   }, [category]);
 
   return { products, loading };

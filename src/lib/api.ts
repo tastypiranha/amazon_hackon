@@ -187,3 +187,17 @@ export async function healthCheck() {
   const res = await fetch(`${API_URL}/api/health`);
   return res.json();
 }
+
+// ─── Return Prediction ───────────────────────────────────────────────────────
+
+export async function predictReturn(category: string, condition: string, price: number, location: string, ownership: string = "amazon") {
+  const params = new URLSearchParams({
+    category,
+    condition,
+    price: String(price),
+    location,
+    ownership,
+  });
+  const res = await fetch(`${API_URL}/api/return-predict?${params}`);
+  return res.json();
+}

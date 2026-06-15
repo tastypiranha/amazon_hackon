@@ -9,17 +9,18 @@ import { getListedProducts, subscribe, ListedProduct } from "../../lib/product-s
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function P2PMatching({ onNav }: { onNav?: (id: string, productId?: number) => void }) {
+export function P2PMatching({ onNav, userLocation }: { onNav?: (id: string, productId?: number) => void; userLocation?: string | null }) {
   const { user } = useAuthContext();
   const [p2pProducts, setP2pProducts] = useState<ListedProduct[]>([]);
 
   useEffect(() => {
-    setP2pProducts(getListedProducts(undefined, "p2p"));
+    // Filter by user's location — P2P is local only
+    setP2pProducts(getListedProducts(userLocation || undefined, "p2p"));
     const unsub = subscribe(() => {
-      setP2pProducts(getListedProducts(undefined, "p2p"));
+      setP2pProducts(getListedProducts(userLocation || undefined, "p2p"));
     });
     return unsub;
-  }, []);
+  }, [userLocation]);
 
   return (
     <div className="p-8">

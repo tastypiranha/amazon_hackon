@@ -1,337 +1,212 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { 
-  Package, RotateCcw, UploadCloud, CheckCircle2, 
-  ChevronRight, ArrowLeft, Leaf, Wallet, CreditCard, Box,
-  AlertCircle
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion } from "motion/react";
+import { Package, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAuthContext } from "../../lib/AuthContext";
-import { usePastOrders, createReturn, awardGreenCredits, insertEvent } from "../../lib/hooks";
-import { comparePhotos, classifyImage } from "../../lib/api";
+import { getPurchases, PurchaseRecord } from "../../lib/product-store";
+import { addNotification } from "../../lib/notification-store";
 
-// Mock Past Orders
-const DEMO_PAST_ORDERS = [
-  {
-    id: "ORD-9281A",
-    products: {
-      name: "Sony WH-1000XM5",
-      brand: "Sony",
-      category: "Audio",
-      image_url: "https://images.unsplash.com/photo-1612858249816-5a91a9fb9886?w=400&h=400&fit=crop&auto=format"
-    },
-    price: 18500,
-    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    eligible: true,
-  },
-  {
-    id: "ORD-3342B",
-    products: {
-      name: "MacBook Pro 14\"",
-      brand: "Apple",
-      category: "Laptops",
-      image_url: "https://images.unsplash.com/photo-1511385348-a52b4a160dc2?w=400&h=400&fit=crop&auto=format"
-    },
-    price: 129000,
-    created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    eligible: false, // Past return window
-  },
-  {
-    id: "ORD-7119C",
-    products: {
-      name: "JBL Flip 6",
-      brand: "JBL",
-      category: "Audio",
-      image_url: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=400&fit=crop&auto=format"
-    },
-    price: 6799,
-    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    eligible: true,
-  }
-];
+const TYPE_BADGE: Record<string, { label: string; color: string }> = {
+  amazon: { label: "Amazon", color: "bg-amber-100 text-amber-700 border-amber-200" },
+  p2p: { label: "P2P", color: "bg-green-100 text-green-700 border-green-200" },
+  exchange: { label: "Exchange", color: "bg-violet-100 text-violet-700 border-violet-200" },
+  donate: { label: "Donation", color: "bg-rose-100 text-rose-700 border-rose-200" },
+};
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+function ReturnRiskMeter({ purchase }: { purchase: PurchaseRecord }) {
+  const [prediction, setPrediction] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchPrediction() {
+      try {
+        const ownershipMap: Record<string, string> = { amazon: "amazon", p2p: "seller", exchange: "exchange", donate: "donate" };
+        const res = await fetch(`${API_URL}/api/return-predict?category=${encodeURIComponent(purchase.category)}&condition=${encodeURIComponent(purchase.condition)}&price=${purchase.price}&location=delhi&ownership=${ownershipMap[purchase.purchaseType] || "amazon"}`);
+        const data = await res.json();
+        setPrediction(data);
+      } catch { /* silently fail */ }
+    }
+    fetchPrediction();
+  }, [purchase]);
+
+  if (!prediction) return null;
+
+  const prob = prediction.return_probability || 0;
+
+  return (
+    <div className="mt-2">
+      <span className="text-xs text-gray-500">Return Prediction: <span className="font-bold text-gray-900">{prob}%</span></span>
+    </div>
+  );
+}
 
 export function ReturnsPortal() {
   const { user } = useAuthContext();
-  const { orders, loading } = usePastOrders(user?.id || "");
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
+  const [returnedItems, setReturnedItems] = useState<Set<number>>(new Set());
+  const [returnConfirm, setReturnConfirm] = useState<PurchaseRecord | null>(null);
 
-  const [step, setStep] = useState<"list" | "upload" | "processing" | "result">("list");
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [comparisonResult, setComparisonResult] = useState<any>(null);
+  useEffect(() => {
+    setPurchases(getPurchases(user?.email || "guest"));
+  }, [user]);
 
-  if (loading) return <div className="p-8 text-gray-500">Loading orders...</div>;
-
-  const displayOrders = orders.length > 0 ? orders.map(o => ({
-    ...o,
-    eligible: new Date(o.created_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000
-  })) : DEMO_PAST_ORDERS;
-
-  const startReturn = (order: any) => {
-    setSelectedOrder(order);
-    setStep("upload");
+  const PROCESSING_FEES: Record<string, number> = {
+    delhi: 15, chennai: 18, mumbai: 12, lucknow: 38, kolkata: 28, prayagraj: 45
   };
 
-  const processReturn = async () => {
-    setStep("processing");
-    
-    try {
-      // If the user uploaded an image, try to classify it via backend
-      if (uploadedFile) {
-        const classResult = await classifyImage(uploadedFile, "electrical_appliances");
-        if (classResult && !classResult.error) {
-          setComparisonResult(classResult);
-        }
+  const handleReturn = (purchase: PurchaseRecord) => {
+    setReturnConfirm(purchase);
+  };
+
+  const confirmReturn = () => {
+    if (returnConfirm) {
+      setReturnedItems(prev => new Set([...prev, returnConfirm.id]));
+      
+      // Notify seller (only for p2p, exchange, donate — not amazon)
+      if (returnConfirm.purchaseType !== "amazon" && returnConfirm.sellerUserId) {
+        addNotification({
+          userId: returnConfirm.sellerUserId,
+          type: "sold_p2p",
+          title: "Item Returned",
+          message: `${user?.email || "A buyer"} has returned your "${returnConfirm.productName}". Refund processed.`,
+        });
       }
-    } catch (err) {
-      console.error("Backend classification failed, continuing with mock:", err);
+      
+      setReturnConfirm(null);
     }
-
-    // Continue with return processing
-    if (user && selectedOrder) {
-      await createReturn({
-        order_id: typeof selectedOrder.id === 'number' ? selectedOrder.id : 1,
-        user_id: user.id,
-        reason: "Customer preference",
-        condition_notes: "Item is in original condition, uploading photos.",
-        status: "pending_grading"
-      });
-
-      await insertEvent({
-        type: "return_initiated",
-        title: "Return Request Created",
-        description: `User requested return for ${selectedOrder.products?.name}`,
-        metadata: { order_id: selectedOrder.id }
-      });
-
-      const outcome = getReturnOutcome(selectedOrder);
-      if (outcome?.type === "credit") {
-        await awardGreenCredits(user.id, 500, 0, "circular_economy_trade_in");
-      }
-    }
-    setStep("result");
   };
-
-  // Determine return outcome based on the item (simulating Phase 2A/2B decisions)
-  const getReturnOutcome = (order: any) => {
-    if (!order) return null;
-    
-    // Simulate Amazon-Owned (Phase 2A) -> Full refund minus processing
-    if (order.products?.name.includes("Sony")) {
-      return {
-        refund: order.price - 150, // 150 processing fee
-        message: "Your return is approved. The item will be instantly re-listed for local buyers to minimize transport emissions.",
-        sustainability: "Saves 2.4 kg CO₂",
-        type: "refund"
-      };
-    }
-    
-    // Simulate Damaged/Unprofitable -> Route to Circular Economy
-    return {
-      refund: order.price * 0.8, // Partial value as trade-in credits
-      message: "This item is heavily used. It has been routed to our Circular Economy partners for responsible recycling/refurbishment.",
-      sustainability: "Earned 500 Green Credits",
-      type: "credit"
-    };
-  };
-
-  const outcome = getReturnOutcome(selectedOrder);
 
   return (
-    <div className="min-h-full bg-gray-50 p-8">
-      <div className="max-w-3xl mx-auto">
-        
-        {/* Header */}
-        <div className="mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4">
-            <RotateCcw className="w-6 h-6 text-indigo-600" />
-          </div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Returns & Exchanges</h1>
-          <p className="text-gray-500 text-sm mt-1">Hassle-free returns powered by AI valuation.</p>
+    <div className="p-8">
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-gray-900 text-xl font-bold">History & Returns</h1>
         </div>
-
-        <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
-          <AnimatePresence mode="wait">
-            
-            {/* STEP 1: ORDER LIST */}
-            {step === "list" && (
-              <motion.div
-                key="list"
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              >
-                <h2 className="text-lg font-bold text-gray-900 mb-6">Recent Orders</h2>
-                <div className="space-y-4">
-                  {displayOrders.map((order: any) => (
-                    <div key={order.id} className={`flex items-center gap-5 p-4 rounded-2xl border ${order.eligible ? 'border-gray-200 hover:border-indigo-300 transition-colors bg-white' : 'border-gray-100 bg-gray-50 opacity-70'}`}>
-                      <div className="w-20 h-20 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
-                        <img src={order.products?.image_url} alt={order.products?.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{order.id}</span>
-                          <span className="text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <h3 className="text-sm font-bold text-gray-900">{order.products?.name}</h3>
-                        <p className="text-xs text-gray-500">{order.products?.brand} • {order.products?.category}</p>
-                        <p className="text-sm font-black text-gray-900 mt-1">₹{Number(order.price).toLocaleString("en-IN")}</p>
-                      </div>
-                      <div>
-                        {order.eligible ? (
-                          <button 
-                            onClick={() => startReturn(order)}
-                            className="bg-gray-900 hover:bg-indigo-600 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-colors cursor-pointer"
-                          >
-                            Return Item
-                          </button>
-                        ) : (
-                          <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">Return Window Closed</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 2: CONDITION UPLOAD */}
-            {step === "upload" && selectedOrder && (
-              <motion.div
-                key="upload"
-                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
-              >
-                <button onClick={() => setStep("list")} className="flex items-center gap-1 text-xs font-bold text-gray-400 hover:text-gray-900 mb-6 transition-colors cursor-pointer">
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back to orders
-                </button>
-                
-                <div className="flex gap-6 mb-8">
-                  <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 border border-gray-200">
-                    <img src={selectedOrder.products?.image_url} alt={selectedOrder.products?.name} className="w-full h-full object-cover opacity-80" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-gray-900">Return {selectedOrder.products?.name}</h2>
-                    <p className="text-sm text-gray-500 mt-1">Please upload 2-3 clear photos of the item's current condition.</p>
-                  </div>
-                </div>
-
-                <div className="border-2 border-dashed border-gray-200 rounded-3xl p-12 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 hover:border-indigo-300 transition-all cursor-pointer group mb-8"
-                  onClick={() => document.getElementById('return-upload')?.click()}
-                >
-                  <input 
-                    id="return-upload" 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) setUploadedFile(f);
-                    }}
-                  />
-                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 group-hover:scale-110 transition-transform">
-                    <UploadCloud className="w-6 h-6 text-indigo-500" />
-                  </div>
-                  {uploadedFile ? (
-                    <>
-                      <p className="text-sm font-bold text-green-700">✓ {uploadedFile.name}</p>
-                      <p className="text-xs text-gray-400 mt-1">Click to change</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm font-bold text-gray-900">Click to upload photos</p>
-                      <p className="text-xs text-gray-400 mt-1">Supports JPG, PNG, HEIC</p>
-                    </>
-                  )}
-                </div>
-
-                <div className="flex justify-end">
-                  <button 
-                    onClick={processReturn}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-6 py-3 rounded-xl transition-colors cursor-pointer"
-                  >
-                    Submit for AI Evaluation <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 3: PROCESSING */}
-            {step === "processing" && (
-              <motion.div
-                key="processing"
-                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                className="py-20 flex flex-col items-center justify-center text-center"
-              >
-                <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-6" />
-                <h2 className="text-lg font-bold text-gray-900 mb-2">AI Assessing Condition...</h2>
-                <p className="text-sm text-gray-500 max-w-sm">Our vision models are comparing your photos against the original listing to verify the grade and calculate your refund.</p>
-              </motion.div>
-            )}
-
-            {/* STEP 4: RESULT */}
-            {step === "result" && selectedOrder && outcome && (
-              <motion.div
-                key="result"
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                className="text-center"
-              >
-                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle2 className="w-10 h-10" />
-                </div>
-                <h2 className="text-2xl font-black text-gray-900 mb-2">Return Approved</h2>
-                
-                {/* Consumer Facing Clean Breakdown */}
-                <div className="max-w-md mx-auto mt-8 bg-gray-50 border border-gray-200 rounded-3xl overflow-hidden text-left">
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-sm font-semibold text-gray-600">Original Price</span>
-                      <span className="text-sm font-bold text-gray-900">₹{Number(selectedOrder.price).toLocaleString("en-IN")}</span>
-                    </div>
-                    {outcome.type === "refund" ? (
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-sm font-semibold text-gray-600 flex items-center gap-1.5"><AlertCircle className="w-4 h-4 text-gray-400"/> Processing Fee</span>
-                        <span className="text-sm font-bold text-red-600">- ₹150</span>
-                      </div>
-                    ) : (
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-sm font-semibold text-gray-600 flex items-center gap-1.5"><AlertCircle className="w-4 h-4 text-gray-400"/> Condition Depreciation</span>
-                        <span className="text-sm font-bold text-red-600">- 20%</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                      <span className="text-base font-black text-gray-900">{outcome.type === "refund" ? "Total Refund" : "Trade-in Value"}</span>
-                      <span className="text-2xl font-black text-green-600">
-                        {outcome.type === "refund" ? "₹" : ""}{outcome.refund.toLocaleString("en-IN")}{outcome.type === "credit" ? " Credits" : ""}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-indigo-50/50 p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5"><Box className="w-5 h-5 text-indigo-600" /></div>
-                      <div>
-                        <p className="text-sm font-bold text-indigo-900 mb-1">Smart Routing Initiated</p>
-                        <p className="text-xs text-indigo-700/80 leading-relaxed mb-3">
-                          {outcome.message}
-                        </p>
-                        <div className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 text-[10px] font-bold px-2.5 py-1 rounded-lg">
-                          <Leaf className="w-3 h-3" /> {outcome.sustainability}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex justify-center gap-4">
-                  <button 
-                    onClick={() => { setStep("list"); setSelectedOrder(null); }}
-                    className="text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
-                  >
-                    Return to Dashboard
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-          </AnimatePresence>
-        </div>
+        <p className="text-gray-400 text-sm">All your purchases across Amazon, P2P, Exchange, and Donations</p>
       </div>
+
+      {purchases.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-16 flex flex-col items-center text-center">
+          <Package className="w-10 h-10 text-gray-200 mb-4" />
+          <h2 className="text-lg font-bold text-gray-900">No purchase history yet</h2>
+          <p className="text-sm text-gray-400 mt-1">Products you buy from Discover, P2P, Exchange, or Donation will appear here.</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Purchase History</p>
+            <span className="text-xs text-gray-400">{purchases.length} orders</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {purchases.map((purchase, i) => {
+              const badge = TYPE_BADGE[purchase.purchaseType] || TYPE_BADGE.amazon;
+              const daysAgo = Math.floor((Date.now() - new Date(purchase.purchasedAt).getTime()) / (1000 * 60 * 60 * 24));
+              const returnEligible = daysAgo <= 7;
+              const isReturned = returnedItems.has(purchase.id);
+
+              return (
+                <motion.div
+                  key={purchase.id}
+                  className="px-5 py-4"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
+                      {purchase.imageUrl && <img src={purchase.imageUrl} alt={purchase.productName} className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className={`text-[10px] font-bold border rounded-full px-1.5 py-px ${badge.color}`}>{badge.label}</span>
+                        <span className="text-[10px] text-gray-400">{new Date(purchase.purchasedAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-900 truncate">{purchase.productName}</p>
+                      <p className="text-xs text-gray-400 capitalize">{purchase.category.replace(/_/g, " ")} · {purchase.condition}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-gray-900">₹{Number(purchase.price).toLocaleString("en-IN")}</p>
+                      {isReturned ? (
+                        <span className="text-[10px] font-bold text-gray-400">Returned</span>
+                      ) : returnEligible ? (
+                        <button
+                          onClick={() => handleReturn(purchase)}
+                          className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5 cursor-pointer hover:bg-red-100 transition-colors"
+                        >
+                          Return Item
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-gray-400">Return window closed</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Return Prediction Meter */}
+                  {!isReturned && returnEligible && <ReturnRiskMeter purchase={purchase} />}
+                  {isReturned && (
+                    <div className="mt-2 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                      <span className="text-xs text-green-700 font-medium">Return processed. Green credits deducted from escrow.</span>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Return Confirmation Modal */}
+      {returnConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-gray-900/30 backdrop-blur-[2px]" onClick={() => setReturnConfirm(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="h-1 w-full bg-red-500" />
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900">Confirm Return</h2>
+                  <p className="text-xs text-gray-400">{returnConfirm.productName}</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Amount Paid</span>
+                  <span className="text-xs font-bold text-gray-900">₹{Number(returnConfirm.price).toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Transaction Fee (non-refundable)</span>
+                  <span className="text-xs font-bold text-red-600">−₹{PROCESSING_FEES["delhi"] || 15}</span>
+                </div>
+                <div className="border-t border-gray-200 pt-2 flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-900">Refund Amount</span>
+                  <span className="text-lg font-black text-green-700">₹{(returnConfirm.price - (PROCESSING_FEES["delhi"] || 15)).toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-gray-400">Green credits earned from this purchase will be deducted from your account.</p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setReturnConfirm(null)}
+                  className="flex-1 py-2.5 text-xs font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmReturn}
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl cursor-pointer transition-colors"
+                >
+                  Confirm Return
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

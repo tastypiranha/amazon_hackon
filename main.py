@@ -31,6 +31,7 @@ from green_engine import (
     process_transaction_points, POINTS_PER_RUPEE, CATEGORY_BASE_POINTS
 )
 from trust_engine import TrustProfileDTO, calculate_trust_index, get_trust_badge
+from returnpredictor import predict_return_probability
 
 # ============================================================================
 # FASTAPI SERVER — Amazon ReLife Backend
@@ -598,7 +599,22 @@ def api_prices(category: str, location: str, condition: str):
     }
 
 
-# ─── 10. HEALTH CHECK ────────────────────────────────────────────────────────
+# ─── 10. RETURN PREDICTOR ─────────────────────────────────────────────────────
+
+@app.get("/api/return-predict")
+def api_return_predict(category: str = "electrical_appliances", condition: str = "resell", price: float = 100, location: str = "delhi", ownership: str = "amazon"):
+    """Predict return probability for a purchased product."""
+    result = predict_return_probability(
+        disposition_route=condition,
+        seller_price=price,
+        category=category,
+        location=location,
+        ownership=ownership
+    )
+    return result
+
+
+# ─── 11. HEALTH CHECK ────────────────────────────────────────────────────────
 
 @app.get("/api/health")
 def health():

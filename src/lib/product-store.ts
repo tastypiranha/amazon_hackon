@@ -14,6 +14,8 @@ export interface ListedProduct {
   imageUrl?: string;
   listedAt: string;
   listingType: "amazon" | "p2p" | "exchange" | "donate"; // how it was listed
+  userId?: string; // who listed it
+  exchangeValue?: number; // Amazon-calculated item value for exchange matching
 }
 
 const STORAGE_KEY = "amazon_relife_products";
@@ -66,4 +68,41 @@ export function subscribe(fn: () => void) {
   return () => {
     listeners = listeners.filter(l => l !== fn);
   };
+}
+
+
+// Purchase history — tracks what each user has bought
+export interface PurchaseRecord {
+  id: number;
+  userId: string;
+  productName: string;
+  category: string;
+  condition: string;
+  price: number;
+  imageUrl?: string;
+  purchaseType: "amazon" | "p2p" | "exchange" | "donate";
+  purchasedAt: string;
+  sellerUserId?: string; // who sold it (for return notifications)
+}
+
+const PURCHASES_KEY = "amazon_relife_purchases";
+
+function loadPurchases(): PurchaseRecord[] {
+  try {
+    return JSON.parse(localStorage.getItem(PURCHASES_KEY) || "[]");
+  } catch { return []; }
+}
+
+function savePurchases(purchases: PurchaseRecord[]) {
+  localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases));
+}
+
+export function addPurchase(purchase: PurchaseRecord) {
+  const purchases = loadPurchases();
+  purchases.unshift(purchase);
+  savePurchases(purchases);
+}
+
+export function getPurchases(userId: string): PurchaseRecord[] {
+  return loadPurchases().filter(p => p.userId === userId);
 }

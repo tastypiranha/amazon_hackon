@@ -255,6 +255,7 @@ function GradingResults({ imageUrl, classificationResult, decisionResult, onNav,
         imageUrl: imageUrl,
         listedAt: new Date().toISOString(),
         listingType: "amazon",
+        userId: user?.email || "guest",
       });
     } else if (selectedOption === "option_2") {
       // P2P local listing — listed at seller's own location
@@ -270,6 +271,7 @@ function GradingResults({ imageUrl, classificationResult, decisionResult, onNav,
         imageUrl: imageUrl,
         listedAt: new Date().toISOString(),
         listingType: "p2p",
+        userId: user?.email || "guest",
       });
     } else if (selectedOption === "option_3") {
       // Exchange listing
@@ -285,6 +287,8 @@ function GradingResults({ imageUrl, classificationResult, decisionResult, onNav,
         imageUrl: imageUrl,
         listedAt: new Date().toISOString(),
         listingType: "exchange",
+        userId: user?.email || "guest",
+        exchangeValue: decisionResult?.options?.option_3_exchange?.your_item_value || parseFloat(sellerPrice || "0"),
       });
     } else if (selectedOption === "option_4") {
       // Donation listing
@@ -300,6 +304,7 @@ function GradingResults({ imageUrl, classificationResult, decisionResult, onNav,
         imageUrl: imageUrl,
         listedAt: new Date().toISOString(),
         listingType: "donate",
+        userId: user?.email || "guest",
       });
     }
 

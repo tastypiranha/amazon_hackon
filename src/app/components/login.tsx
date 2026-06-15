@@ -1,13 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Eye, EyeOff, Leaf, ArrowRight, Lock, Mail, Recycle, TrendingUp, Shield } from "lucide-react";
+import { Eye, EyeOff, Leaf, ArrowRight, Lock, Mail } from "lucide-react";
 import rcLogo from "../../imports/images__1_.png";
-
-const STATS = [
-  { icon: Recycle,    value: "2.4M",  label: "Returns recirculated" },
-  { icon: TrendingUp, value: "₹18Cr", label: "GMV recovered" },
-  { icon: Shield,     value: "142t",  label: "CO₂ offset" },
-];
 
 import { useAuthContext } from "../../lib/AuthContext";
 
@@ -79,55 +73,18 @@ export function Login({ onLogin }: LoginProps) {
               Sustainable Commerce Platform
             </p>
             <h1 className="text-white text-4xl leading-tight mb-4">
-              Close the loop on<br />every return.
+              Give every product<br />a second life.
             </h1>
             <p className="text-gray-400 text-sm leading-relaxed max-w-sm">
-              ML-powered grading, instant P2P matching, and buyer-seller routing — all in one intelligent platform.
+              AI-powered grading, smart routing, and circular commerce — reducing waste one product at a time.
             </p>
-          </motion.div>
-
-          {/* Stats */}
-          <motion.div
-            className="grid grid-cols-3 gap-3"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            {STATS.map(({ icon: Icon, value, label }) => (
-              <div key={label} className="bg-white/5 border border-white/8 rounded-2xl p-4">
-                <Icon className="w-4 h-4 text-emerald-400 mb-2" />
-                <p className="text-white text-xl font-black tracking-tight">{value}</p>
-                <p className="text-gray-500 text-[10px] mt-0.5 leading-snug">{label}</p>
-              </div>
-            ))}
-          </motion.div>
-
-          {/* Testimonial */}
-          <motion.div
-            className="bg-white/5 border border-white/8 rounded-2xl p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-          >
-            <p className="text-gray-300 text-sm leading-relaxed italic">
-              "Amazon ReLife cut our return rate by 34% in the first quarter. The ML intercept alone paid for the platform."
-            </p>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                <span className="text-emerald-400 text-[11px] font-bold">★</span>
-              </div>
-              <div>
-                <p className="text-white text-xs font-semibold">Head of Operations</p>
-                <p className="text-gray-500 text-[10px]">Leading E-commerce Platform, India</p>
-              </div>
-            </div>
           </motion.div>
         </div>
 
         {/* Bottom */}
         <div className="relative flex items-center gap-2">
           <Leaf className="w-3.5 h-3.5 text-emerald-500" />
-          <p className="text-gray-600 text-xs">Carbon-neutral certified · ISO 14001</p>
+          <p className="text-gray-600 text-xs">Amazon ReLife · Sustainable Commerce</p>
         </div>
       </div>
 
@@ -281,7 +238,7 @@ export function Login({ onLogin }: LoginProps) {
           >
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
             <p className="text-xs text-gray-500 leading-relaxed">
-              <strong className="text-gray-700">Demo mode</strong> — enter any email and password to explore the platform.
+              <strong className="text-gray-700">Demo accounts</strong> — user1@ex.com / 12345 or user2@ex.com / 1234567
             </p>
           </motion.div>
         </motion.div>

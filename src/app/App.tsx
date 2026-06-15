@@ -22,6 +22,7 @@ import { useProducts, useP2PNearby, useDonationListener } from "../lib/hooks";
 import { useAuthContext } from "../lib/AuthContext";
 import { Product, Donation } from "../lib/types";
 import { getListedProducts, subscribe as subscribeProducts } from "../lib/product-store";
+import { getNotifications, getUnreadCount, markAllRead, subscribeNotifications } from "../lib/notification-store";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ const NAV = [
   { id: "checkout", label: "Checkout Intercept", icon: ShoppingCart },
   { id: "seller",   label: "Seller Hub",         icon: Cpu },
   { id: "p2p",      label: "P2P Matching",       icon: Users },
-  { id: "returns",  label: "Returns Portal",     icon: RotateCcw },
+  { id: "returns",  label: "History & Returns",  icon: RotateCcw },
   { id: "donations",label: "Donation Hub",       icon: Heart },
   { id: "exchange", label: "Exchange",           icon: ArrowLeftRight },
   { id: "ops",      label: "Ops Dashboard",      icon: BarChart2 },
@@ -508,8 +509,24 @@ function Overview({ onNav, userLocation }: { onNav: (id: string, productId?: num
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ active, onChange }: { active: string; onChange: (id: string) => void }) {
-  const { user } = useAuthContext();
+function Sidebar({ active, onChange }: { active: string; onChange: (id: string, productId?: number) => void }) {
+  const { user, signOut } = useAuthContext();
+  const [showMenu, setShowMenu] = useState(false);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifs, setNotifs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const userId = user?.email || "guest";
+    setUnreadCount(getUnreadCount(userId));
+    setNotifs(getNotifications(userId));
+    const unsub = subscribeNotifications(() => {
+      setUnreadCount(getUnreadCount(userId));
+      setNotifs(getNotifications(userId));
+    });
+    return unsub;
+  }, [user]);
+
   return (
     <div className="w-56 flex-shrink-0 bg-[#111827] flex flex-col h-full">
       <div className="px-5 py-5 border-b border-white/8">
@@ -553,16 +570,69 @@ function Sidebar({ active, onChange }: { active: string; onChange: (id: string) 
         </div>
       </nav>
 
-      <div className="px-4 py-4 border-t border-white/8">
-        <div className="flex items-center gap-2.5">
+      <div className="px-4 py-4 border-t border-white/8 relative">
+        <div 
+          className="flex items-center gap-2.5 cursor-pointer hover:bg-white/6 rounded-lg p-1.5 -m-1.5 transition-colors"
+          onClick={() => { setShowMenu(v => !v); setShowNotifs(false); }}
+        >
           <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
             <span className="text-[11px] font-bold text-gray-300">{(user?.email || "R")[0].toUpperCase()}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-300 truncate">{user?.email || "Rahul Sharma"}</p>
+            <p className="text-xs font-semibold text-gray-300 truncate">{user?.email || "User"}</p>
             <p className="text-[10px] text-gray-600 truncate">{(() => { const c = JSON.parse(localStorage.getItem(`amazon_relife_credits_${user?.email || 'guest'}`) || '{"total_points": 100}'); return `${c.total_points} pts · Eco Level ${Math.floor(c.total_points / 500) + 1}`; })()}</p>
           </div>
         </div>
+        {showMenu && (
+          <div className="absolute bottom-full left-3 mb-2 w-44 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50">
+            <button className="w-full text-left px-4 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              Profile
+            </button>
+            <button 
+              onClick={() => { setShowMenu(false); setShowNotifs(v => !v); markAllRead(user?.email || "guest"); }}
+              className="w-full text-left px-4 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-between"
+            >
+              Notifications
+              {unreadCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadCount}</span>}
+            </button>
+            <button 
+              onClick={() => signOut()}
+              className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 border-t border-gray-100 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+        )}
+        {showNotifs && (
+          <div className="absolute bottom-full left-3 mb-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50 max-h-80 overflow-y-auto">
+            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Notifications</p>
+            </div>
+            {notifs.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs text-gray-400">No notifications yet</p>
+              </div>
+            ) : (
+              notifs.map(n => (
+                <div 
+                  key={n.id} 
+                  className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${n.type === "exchange_proposed" ? "cursor-pointer" : ""}`}
+                  onClick={() => {
+                    if (n.type === "exchange_proposed" && n.productId) {
+                      setShowNotifs(false);
+                      onChange("checkout", n.productId);
+                    }
+                  }}
+                >
+                  <p className="text-xs font-bold text-gray-900">{n.title}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{n.message}</p>
+                  {n.type === "exchange_proposed" && <p className="text-[10px] text-violet-600 font-bold mt-1">Click to pay your exchange fee →</p>}
+                  <p className="text-[10px] text-gray-300 mt-1">{new Date(n.createdAt).toLocaleString()}</p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -578,6 +648,11 @@ export default function App() {
   const [userLocation, setUserLocation] = useState<string | null>(null);
 
   const LOCATIONS = ["delhi", "chennai", "mumbai", "lucknow", "kolkata", "prayagraj"];
+
+  // Reset location picker when user changes (logout/login)
+  useEffect(() => {
+    setUserLocation(null);
+  }, [user?.email]);
 
   useDonationListener((newDonation) => {
     // Show notification for donations by other users
@@ -636,13 +711,13 @@ export default function App() {
 
   const renderScreen = (id: string) => {
     switch (id) {
-      case "checkout": return <CheckoutIntercept selectedProductId={selectedProductId} userLocation={userLocation} />;
+      case "checkout": return <CheckoutIntercept selectedProductId={selectedProductId} userLocation={userLocation} onNav={handleNav} />;
       case "returns":  return <ReturnsPortal />;
       case "seller":   return <SellerHub onNav={handleNav} />;
       case "buyer":    return <BuyerView productId={selectedProductId} />;
-      case "p2p":      return <P2PMatching onNav={handleNav} />;
-      case "donations":return <DonationHub />;
-      case "exchange": return <Exchange />;
+      case "p2p":      return <P2PMatching onNav={handleNav} userLocation={userLocation} />;
+      case "donations":return <DonationHub onNav={handleNav} />;
+      case "exchange": return <Exchange userLocation={userLocation} onNav={handleNav} />;
       case "ops":      return <OpsDashboard />;
       default:         return null;
     }
@@ -676,7 +751,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <Sidebar active={screen} onChange={(id) => handleNav(id)} />
+      <Sidebar active={screen} onChange={(id, productId) => handleNav(id, productId)} />
 
       <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col h-full">
         {/* Top bar */}

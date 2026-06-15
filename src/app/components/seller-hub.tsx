@@ -195,6 +195,7 @@ function GradingResults({ imageUrl, classificationResult, decisionResult, onNav,
   const { user } = useAuthContext();
   const [accepted, setAccepted] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
   const [exchange, setExchange] = useState<ExchangeType>("amazon");
 
   // Real classification data from backend
@@ -447,6 +448,72 @@ function GradingResults({ imageUrl, classificationResult, decisionResult, onNav,
           </AnimatePresence>
         </div>
       </motion.div>
+
+      {/* Collapsible Backend Calculations */}
+      <div className="mt-4 border border-gray-200 rounded-xl overflow-hidden bg-white">
+        <button
+          onClick={() => setShowDetails(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-gray-500 hover:bg-gray-50 cursor-pointer transition-colors"
+        >
+          <span>Backend Calculations (AI Engine)</span>
+          <span className="text-gray-300">{showDetails ? "▲" : "▼"}</span>
+        </button>
+        {showDetails && (
+          <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
+            {/* Classification confidence */}
+            {classificationResult?.confidence && (
+              <div className="pt-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Classification Confidence</p>
+                {Object.entries(classificationResult.confidence as Record<string, number>).map(([label, value]) => (
+                  <div key={label} className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] text-gray-400 w-16 capitalize">{label}</span>
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${label === "resell" ? "bg-green-500" : label === "refurbish" ? "bg-sky-500" : "bg-amber-500"}`} style={{ width: `${Math.round(Number(value) * 100)}%` }} />
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-600 w-8 text-right">{Math.round(Number(value) * 100)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Price comparison */}
+            {decisionResult?.prices_comparison && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Estimated Selling Prices (Best Warehouse)</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.entries(decisionResult.prices_comparison).map(([route, price]) => (
+                    <div key={route} className={`text-center p-2 rounded-lg border ${route === classificationResult?.condition ? "border-amber-300 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
+                      <p className="text-sm font-black text-gray-900">₹{Number(price).toLocaleString("en-IN")}</p>
+                      <p className="text-[10px] text-gray-400 capitalize">{route}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* K-scores */}
+            {decisionResult?.all_ki && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Warehouse K-Scores</p>
+                {Object.entries(decisionResult.all_ki).map(([loc, kVal]) => (
+                  <div key={loc} className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] text-gray-400 w-16 uppercase">{loc}</span>
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${loc === decisionResult.best_warehouse?.toLowerCase() ? "bg-amber-500" : "bg-gray-300"}`} style={{ width: `${Math.min(Math.max(Number(kVal) / 50, 0), 100)}%` }} />
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-500 w-14 text-right">{Number(kVal).toFixed(1)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Decision metadata */}
+            {decisionResult && (
+              <div className="text-[10px] text-gray-400 space-y-0.5 pt-1 border-t border-gray-100">
+                <p>Decision: {decisionResult.decision} | K-max: {decisionResult.k_max?.toFixed(2)} | Best: {decisionResult.best_warehouse}</p>
+                <p>Condition: {classificationResult?.condition} | Category: {classificationResult?.category}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 }

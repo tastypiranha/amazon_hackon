@@ -201,3 +201,17 @@ export async function predictReturn(category: string, condition: string, price: 
   const res = await fetch(`${API_URL}/api/return-predict?${params}`);
   return res.json();
 }
+
+// ─── Return Photo Verification ───────────────────────────────────────────────
+
+export async function verifyReturnPhoto(originalImage: File, returnImage: File) {
+  const formData = new FormData();
+  formData.append('original_image', originalImage);
+  formData.append('return_image', returnImage);
+
+  const res = await fetch(`${API_URL}/api/return-verify`, {
+    method: 'POST',
+    body: formData,
+  });
+  return res.json();
+}

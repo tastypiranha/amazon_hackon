@@ -32,6 +32,7 @@ from green_engine import (
 )
 from trust_engine import TrustProfileDTO, calculate_trust_index, get_trust_badge
 from returnpredictor import predict_return_probability
+from photoverify import verify_return_photo, RETURN_VERIFY_THRESHOLD
 
 # ============================================================================
 # FASTAPI SERVER — Amazon ReLife Backend
@@ -512,6 +513,35 @@ async def api_compare(
     finally:
         os.unlink(path1)
         os.unlink(path2)
+
+
+# ─── 6b. RETURN PHOTO VERIFICATION ───────────────────────────────────────────
+
+@app.post("/api/return-verify")
+async def api_return_verify(
+    original_image: UploadFile = File(...),
+    return_image: UploadFile = File(...)
+):
+    """
+    Verify a return by comparing the original product photo with the buyer's return photo.
+    Uses CLIP embeddings with 85% similarity threshold.
+    If match >= 85%: return approved. Otherwise: return denied.
+    """
+    # Save both images temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp1:
+        tmp1.write(await original_image.read())
+        path_original = tmp1.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp2:
+        tmp2.write(await return_image.read())
+        path_return = tmp2.name
+
+    try:
+        result = verify_return_photo(clip_model, clip_processor, path_original, path_return)
+        return result
+    finally:
+        os.unlink(path_original)
+        os.unlink(path_return)
 
 
 # ─── 7. GREEN POINTS ─────────────────────────────────────────────────────────

@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
-import { motion } from "motion/react";
-import { Package, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { Package, AlertTriangle, CheckCircle2, Camera, Upload, XCircle, Loader2 } from "lucide-react";
 import { useAuthContext } from "../../lib/AuthContext";
 import { getPurchases, PurchaseRecord } from "../../lib/product-store";
 import { addNotification } from "../../lib/notification-store";
+import { verifyReturnPhoto } from "../../lib/api";
 
 const TYPE_BADGE: Record<string, { label: string; color: string }> = {
   amazon: { label: "Amazon", color: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -12,11 +13,18 @@ const TYPE_BADGE: Record<string, { label: string; color: string }> = {
   donate: { label: "Donation", color: "bg-rose-100 text-rose-700 border-rose-200" },
 };
 
+type VerifyState = "idle" | "uploading" | "verifying" | "verified" | "rejected";
+
 export function ReturnsPortal() {
   const { user } = useAuthContext();
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [returnedItems, setReturnedItems] = useState<Set<number>>(new Set());
   const [returnConfirm, setReturnConfirm] = useState<PurchaseRecord | null>(null);
+  const [returnPhoto, setReturnPhoto] = useState<File | null>(null);
+  const [returnPhotoPreview, setReturnPhotoPreview] = useState<string | null>(null);
+  const [verifyState, setVerifyState] = useState<VerifyState>("idle");
+  const [verifyResult, setVerifyResult] = useState<any>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setPurchases(getPurchases(user?.email || "guest"));
@@ -28,6 +36,45 @@ export function ReturnsPortal() {
 
   const handleReturn = (purchase: PurchaseRecord) => {
     setReturnConfirm(purchase);
+    setReturnPhoto(null);
+    setReturnPhotoPreview(null);
+    setVerifyState("idle");
+    setVerifyResult(null);
+  };
+
+  const handlePhotoSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setReturnPhoto(file);
+    setReturnPhotoPreview(URL.createObjectURL(file));
+    setVerifyState("uploading");
+  };
+
+  const handleVerify = async () => {
+    if (!returnPhoto || !returnConfirm) return;
+
+    setVerifyState("verifying");
+
+    try {
+      // Convert the original product image URL to a File object for the API
+      const originalImageUrl = returnConfirm.imageUrl;
+      if (!originalImageUrl) {
+        setVerifyState("rejected");
+        setVerifyResult({ similarity: 0, is_verified: false, verdict: "No original image available for comparison." });
+        return;
+      }
+
+      // Fetch original image and create a File from it
+      const response = await fetch(originalImageUrl);
+      const blob = await response.blob();
+      const originalFile = new File([blob], "original.jpg", { type: blob.type });
+
+      const result = await verifyReturnPhoto(originalFile, returnPhoto);
+      setVerifyResult(result);
+      setVerifyState(result.is_verified ? "verified" : "rejected");
+    } catch {
+      setVerifyState("rejected");
+      setVerifyResult({ similarity: 0, is_verified: false, verdict: "Verification failed. Please try again." });
+    }
   };
 
   const confirmReturn = () => {
@@ -42,7 +89,7 @@ export function ReturnsPortal() {
       current.transactions = current.transactions || [];
       current.transactions.push({ points: -earnedFromPurchase, type: "return_deduction", date: new Date().toISOString() });
       localStorage.setItem(creditsKey, JSON.stringify(current));
-      
+
       // Notify seller (only for p2p, exchange, donate — not amazon)
       if (returnConfirm.purchaseType !== "amazon" && returnConfirm.sellerUserId) {
         addNotification({
@@ -52,9 +99,21 @@ export function ReturnsPortal() {
           message: `${user?.email || "A buyer"} has returned your "${returnConfirm.productName}". Refund processed.`,
         });
       }
-      
+
       setReturnConfirm(null);
+      setReturnPhoto(null);
+      setReturnPhotoPreview(null);
+      setVerifyState("idle");
+      setVerifyResult(null);
     }
+  };
+
+  const closeModal = () => {
+    setReturnConfirm(null);
+    setReturnPhoto(null);
+    setReturnPhotoPreview(null);
+    setVerifyState("idle");
+    setVerifyResult(null);
   };
 
   return (
@@ -134,58 +193,199 @@ export function ReturnsPortal() {
         </div>
       )}
 
-      {/* Return Confirmation Modal */}
-      {returnConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-gray-900/30 backdrop-blur-[2px]" onClick={() => setReturnConfirm(null)} />
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="h-1 w-full bg-red-500" />
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
+      {/* Return Verification Modal */}
+      <AnimatePresence>
+        {returnConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-[2px]"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={closeModal}
+            />
+            <motion.div
+              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+            >
+              <div className={`h-1 w-full ${verifyState === "verified" ? "bg-green-500" : verifyState === "rejected" ? "bg-red-500" : "bg-amber-500"}`} />
+              <div className="p-6 space-y-5">
+
+                {/* Header */}
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                    <Camera className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-gray-900">Return Verification</h2>
+                    <p className="text-xs text-gray-400">{returnConfirm.productName}</p>
+                  </div>
                 </div>
+
+                {/* Step 1: Photo Upload */}
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900">Confirm Return</h2>
-                  <p className="text-xs text-gray-400">{returnConfirm.productName}</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                    Step 1: Upload a photo of the product you're returning
+                  </p>
+                  <div
+                    className={`border-2 border-dashed rounded-xl overflow-hidden cursor-pointer transition-all ${
+                      returnPhotoPreview ? "border-gray-200" : "border-gray-300 hover:border-amber-400 hover:bg-amber-50"
+                    }`}
+                    onClick={() => !returnPhotoPreview && fileRef.current?.click()}
+                  >
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSelect(f); }}
+                    />
+                    {!returnPhotoPreview ? (
+                      <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
+                        <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
+                          <Upload className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <p className="text-xs font-semibold text-gray-600">Click to upload product photo</p>
+                        <p className="text-[10px] text-gray-400">JPG, PNG, WEBP · Must clearly show the product</p>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <img src={returnPhotoPreview} alt="Return photo" className="w-full h-40 object-cover" />
+                        <button
+                          onClick={e => { e.stopPropagation(); setReturnPhoto(null); setReturnPhotoPreview(null); setVerifyState("idle"); setVerifyResult(null); }}
+                          className="absolute top-2 right-2 bg-white border border-gray-200 rounded-full p-1 cursor-pointer hover:bg-gray-50 transition-colors shadow-sm"
+                        >
+                          <XCircle className="w-4 h-4 text-gray-500" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Amount Paid</span>
-                  <span className="text-xs font-bold text-gray-900">₹{Number(returnConfirm.price).toLocaleString("en-IN")}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Transaction Fee (non-refundable)</span>
-                  <span className="text-xs font-bold text-red-600">−₹{PROCESSING_FEES["delhi"] || 15}</span>
-                </div>
-                <div className="border-t border-gray-200 pt-2 flex items-center justify-between">
-                  <span className="text-sm font-bold text-gray-900">Refund Amount</span>
-                  <span className="text-lg font-black text-green-700">₹{(returnConfirm.price - (PROCESSING_FEES["delhi"] || 15)).toLocaleString("en-IN")}</span>
-                </div>
-              </div>
+                {/* Step 2: Verify Button */}
+                {returnPhotoPreview && verifyState === "uploading" && (
+                  <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                      Step 2: AI Verification
+                    </p>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Our AI will compare your photo with the original product image to verify it's the same item.
+                    </p>
+                    <button
+                      onClick={handleVerify}
+                      className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl py-3 cursor-pointer transition-colors"
+                    >
+                      <Camera className="w-4 h-4" /> Verify Product Match
+                    </button>
+                  </motion.div>
+                )}
 
-              <p className="text-[10px] text-gray-400">Green credits earned from this purchase will be deducted from your account.</p>
+                {/* Verifying state */}
+                {verifyState === "verifying" && (
+                  <motion.div
+                    className="flex flex-col items-center gap-3 py-4"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  >
+                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                    <p className="text-sm font-semibold text-gray-700">Analyzing product match...</p>
+                    <p className="text-[10px] text-gray-400">Comparing with CLIP AI vision model</p>
+                  </motion.div>
+                )}
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setReturnConfirm(null)}
-                  className="flex-1 py-2.5 text-xs font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmReturn}
-                  className="flex-1 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl cursor-pointer transition-colors"
-                >
-                  Confirm Return
-                </button>
+                {/* Verified — show refund info and confirm */}
+                {verifyState === "verified" && verifyResult && (
+                  <motion.div className="space-y-4" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+                    <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-green-800">Product Verified ✓</p>
+                        <p className="text-[10px] text-green-600 mt-0.5">Similarity: {(verifyResult.similarity * 100).toFixed(1)}% (threshold: 85%)</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Amount Paid</span>
+                        <span className="text-xs font-bold text-gray-900">₹{Number(returnConfirm.price).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Transaction Fee (non-refundable)</span>
+                        <span className="text-xs font-bold text-red-600">−₹{PROCESSING_FEES["delhi"] || 15}</span>
+                      </div>
+                      <div className="border-t border-gray-200 pt-2 flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-900">Refund Amount</span>
+                        <span className="text-lg font-black text-green-700">₹{(returnConfirm.price - (PROCESSING_FEES["delhi"] || 15)).toLocaleString("en-IN")}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-gray-400">Green credits earned from this purchase will be deducted from your account.</p>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={closeModal}
+                        className="flex-1 py-2.5 text-xs font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmReturn}
+                        className="flex-1 py-2.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl cursor-pointer transition-colors"
+                      >
+                        Confirm Return
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Rejected — mismatch */}
+                {verifyState === "rejected" && verifyResult && (
+                  <motion.div className="space-y-4" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+                    <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                      <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-red-800">Verification Failed</p>
+                        <p className="text-[10px] text-red-600 mt-0.5">
+                          {verifyResult.similarity > 0
+                            ? `Similarity: ${(verifyResult.similarity * 100).toFixed(1)}% (needs ≥85%)`
+                            : verifyResult.verdict}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      The uploaded photo does not match the original product. Please upload a clear photo of the exact item you received.
+                    </p>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={closeModal}
+                        className="flex-1 py-2.5 text-xs font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => { setReturnPhoto(null); setReturnPhotoPreview(null); setVerifyState("idle"); setVerifyResult(null); }}
+                        className="flex-1 py-2.5 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl cursor-pointer transition-colors"
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Idle state — no photo yet, just show cancel */}
+                {verifyState === "idle" && !returnPhotoPreview && (
+                  <button
+                    onClick={closeModal}
+                    className="w-full py-2.5 text-xs font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+
               </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }
